@@ -416,10 +416,210 @@ def walk_game(d: Driver) -> None:
     d.shot("menu_after")
 
 
+#(a2) boss fight walkthrough
+
+def start_practice_boss(d: Driver, number: int):
+    """From the menu into a practice round that starts at boss `number`."""
+    app = d.app
+    check(d.stack == ["menu"], f"at the menu before boss {number} ({d.stack})")
+    app.start_boss = number
+    d.focus_to(d.top.menu, 0)
+    d.key(pg.K_RETURN)
+    play = play_scene(d)
+    check(play.practice and play.level == config.BOSS_EVERY * number, f"practice round starts at level {play.level}")
+    return play
+
+
+def walk_boss(d: Driver) -> None:
+    """Boss 1 through the real scenes: intro, damage, beam, ball, hurt, resize, pause, reward, resume; then boss 2 game over."""
+    from game.entities.boss_items import EnergyItem, HelperBall, Projectile
+    app = d.app
+    app.autoplay = False
+    check(app_mod.parse_args(["--start-boss", "2"]).start_boss == 2, "--start-boss flag parsed")
+    save_before = json.load(open(os.path.join(TEMP_DATA, "save.json"), encoding="utf-8"))
+    play = start_practice_boss(d, 1)
+    ctrl = play.boss
+    wait_for(d, lambda: play.boss_mode, 6 * 60, "boss fight starts right after the countdown")
+    play.hurt_timer = 1e6                               # scripted part: shots cannot hurt unless a check asks them to
+    check(ctrl.state == "intro" and ctrl.boss.number == 1 and ctrl.boss.kind == 0, f"boss 1 intro ({ctrl.state})")
+    check(not play.items and play.next_boss_level == config.BOSS_EVERY, "ordinary items are gone, level frozen at 10")
+    hud = play._boss_hud()
+    check(hud is not None and hud["state"] == "intro" and hud["hp_frac"] == 1.0, f"HUD boss state in the intro ({hud})")
+    d.steps(40)
+    d.shot("boss_intro")
+    wait_for(d, lambda: ctrl.state == "fight", 6 * 60, "intro ends and the fight begins")
+    check(ctrl.damageable and ctrl.time_left > config.BOSS_TIME_LIMIT - 5, "fight clock running")
+    d.shot("boss_fight")
+
+    # Helpers fall from the sky on their own; ordinary spawns stay off
+    wait_for(d, lambda: any(isinstance(h, EnergyItem) for h in play.helpers), 8 * 60, "energy items fall")
+    wait_for(d, lambda: any(isinstance(h, HelperBall) for h in play.helpers), 10 * 60, "a helper ball falls")
+    check(not play.items, "no ordinary items during the fight")
+
+    # The beam needs energy and a target
+    play.beams.clear()
+    play.energy = config.BOSS_ENERGY_NEED - 1
+    d.key(pg.K_SPACE)
+    check(not play.beams and play.energy == config.BOSS_ENERGY_NEED - 1, "Space without enough energy does nothing")
+    play.energy = config.BOSS_ENERGY_NEED
+    play.player.pos.x = 30 if ctrl.boss.pos.x > config.LOGICAL_W / 2 else config.LOGICAL_W - 30
+    hp, score = ctrl.boss.hp, play.score
+    d.key(pg.K_SPACE)
+    check(play.beams and not play.beams[-1].hit and ctrl.boss.hp == hp, "a beam that misses does no damage")
+    check(play.energy == 0, "the shot used up the energy")
+    play.energy = config.BOSS_ENERGY_NEED
+    play.player.pos.x = ctrl.boss.pos.x
+    d.key(pg.K_SPACE)
+    check(play.beams[-1].hit and abs((hp - ctrl.boss.hp) - config.BOSS_BEAM_DAMAGE) < 1e-6,
+          f"beam took {hp - ctrl.boss.hp:.2f} hp")
+    check(play.score > score, "damage scores points")
+    d.steps(4)
+    d.shot("boss_beam")
+
+    # Ball: caught -> flies -> hits the boss for BOSS_BALL_DAMAGE
+    play.helpers.clear()
+    x = play.player.pos.x
+    ball = HelperBall(x, catch_y(config.BOSS_BALL_RADIUS) - 30)
+    ball.vel.y = 300
+    play.helpers.append(ball)
+    wait_for(d, lambda: ball.state == "flying", 60, "paddle catches the falling ball")
+    check(ball.vel.y < 0, "a caught ball launches upwards")
+    hp = ctrl.boss.hp
+    b = ctrl.boss
+    ball.pos.update(b.pos.x, b.pos.y + b.half_h + 60)
+    ball.vel.update(0, -config.BOSS_BALL_SPEED)
+    wait_for(d, lambda: ctrl.boss.hp < hp, 60, "the ball hits the boss")
+    check(abs((hp - ctrl.boss.hp) - config.BOSS_BALL_DAMAGE) < 1e-6, f"ball took {hp - ctrl.boss.hp:.2f} hp")
+    play.helpers.clear()
+
+    # Losing the ball costs a life
+    lives = play.lives
+    ball = HelperBall(60, config.PLAYER_Y + 40)
+    ball.state = "flying"
+    ball.vel.update(0, config.BOSS_BALL_SPEED)
+    play.helpers.append(ball)
+    wait_for(d, lambda: play.lives < lives, 120, "a lost ball costs a life")
+    play.lives = config.START_LIVES
+
+    # A shot costs a life, then a second of invulnerability
+    play.projectiles.clear()
+    play.hurt_timer = 0.0
+    lives = play.lives
+    play.player.shield = 0
+    pr = Projectile(play.player.pos.x, play.player.pos.y - 30, 0, 200)
+    play.projectiles.append(pr)
+    d.steps(6)
+    check(play.lives == lives - 1 and play.hurt_timer > 0.5, f"a boss shot costs a life ({lives} -> {play.lives})")
+    pr = Projectile(play.player.pos.x, play.player.pos.y - 30, 0, 200)
+    play.projectiles.append(pr)
+    d.steps(6)
+    check(play.lives == lives - 1, "no second hit while invulnerable")
+    play.player.shield = 1
+    play.hurt_timer = 0.0
+    pr = Projectile(play.player.pos.x, play.player.pos.y - 30, 0, 200)
+    play.projectiles.append(pr)
+    d.steps(6)
+    check(play.player.shield == 0 and play.lives == lives - 1, "a shield soaks a boss shot")
+    play.hurt_timer = 1e6
+    d.shot("boss_hurt")
+
+    # Resize and pause in the middle of the fight
+    for fs in (True, False):
+        app.settings.fullscreen = fs
+        app.apply_settings()
+        d.steps(20)
+        b = ctrl.boss
+        check(d.stack == ["play"] and b.half_w <= b.pos.x <= config.LOGICAL_W - b.half_w,
+              f"boss stays inside the resized canvas (x={b.pos.x:.0f}, w={config.LOGICAL_W})")
+        check(all(0 <= p.pos.x <= config.LOGICAL_W for p in play.helpers), "helpers stay inside the resized canvas")
+    left = ctrl.time_left
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["play", "pause"], f"Esc pauses the boss fight ({d.stack})")
+    d.steps(30)
+    check(ctrl.time_left == left, "boss clock frozen while paused")
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["play"], "resumed")
+
+    # Defeat: wipe the field, bonus, lives, reward scene
+    play.lives = 2
+    score = play.score
+    ctrl.damage(1e9)
+    wait_for(d, lambda: ctrl.state == "victory" and not play.projectiles and not play.helpers, 30, "victory clears the field")
+    check(play.score - score >= config.BOSS_CLEAR_BONUS and play.lives == play.max_lives,
+          f"victory bonus and full lives (score +{play.score - score}, lives {play.lives})")
+    d.steps(30)
+    d.shot("boss_victory")
+    wait_for(d, lambda: d.stack == ["play", "boss_reward"], int((config.BOSS_VICTORY_TIME + 1) * 60), "reward scene opens")
+    check(type(d.top).__name__ == "BossRewardScene" and "boss_reward" not in app.placeholders, "real reward scene")
+    d.steps(60)
+    d.shot("boss_reward")
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["play", "boss_reward"], "Esc cannot skip the reward")
+    d.key(pg.K_d)
+    d.key(pg.K_RETURN)
+    check(d.stack == ["play"], f"picking an upgrade returns to the round ({d.stack})")
+    check(not play.boss_mode and ctrl.state == "idle" and play.next_boss_level == 2 * config.BOSS_EVERY
+          and sum(play.upgrades.values()) == 1 and play.level == config.BOSS_EVERY,
+          f"back to normal play (boss_mode={play.boss_mode}, upgrades={play.upgrades}, next={play.next_boss_level})")
+    wait_for(d, lambda: play.items, 6 * 60, "ordinary items come back after the reward")
+    check(play.bosses_defeated == 1, "one boss defeated")
+
+    # Boss 2 through the normal level trigger; losing there ends the round without a high score
+    from game.systems import difficulty
+    play.score = difficulty.score_for_level(2 * config.BOSS_EVERY)
+    play._check_level()
+    check(play.boss_mode and ctrl.boss.number == 2 and ctrl.boss.kind == 1, "level 20 starts boss 2 (second design)")
+    wait_for(d, lambda: ctrl.state == "fight", 6 * 60, "boss 2 fight begins")
+    d.shot("boss_2")
+    play.projectiles.clear()
+    play.player.shield = 0
+    play.hurt_timer = 0.0
+    play.lives = 1
+    play.projectiles.append(Projectile(play.player.pos.x, play.player.pos.y - 30, 0, 200))
+    d.steps(4)
+    check(play.state == "dying", "the last life lost in a boss fight starts the death slow-mo")
+    wait_for(d, lambda: d.stack == ["gameover"], 120, "game over after the boss fight")
+    save_after = json.load(open(os.path.join(TEMP_DATA, "save.json"), encoding="utf-8"))
+    check(save_after == save_before, "practice rounds do not touch the high score file")
+    d.steps(30)
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["menu"], f"back at the menu ({d.stack})")
+    app.start_boss = 0
+    check(all(v == 1.0 for v in config.UPGRADE_MULT.values()), "upgrades reset when leaving the round")
+
+
 #(b) autoplay soak
+
+def autoplay_boss(d: Driver, number: int, max_seconds: float) -> dict:
+    """The bot plays a practice round that starts at boss `number` and must beat it (reward auto-picked)."""
+    app = d.app
+    app.autoplay = True
+    app.start_boss = number
+    app.settings.fps_cap = 0
+    play = app.scenes.get("play")
+    play.rng.seed(7000 + number)                        # reproducible fights (the bot itself is deterministic)
+    app.scenes.switch("play")
+    app.scenes.apply_pending()
+    out = {"won": False, "seconds": 0.0, "lives_left": 0, "max_phase": 1}
+    for i in range(int(max_seconds / DT)):
+        app.step(DT)
+        top = app.scenes.top_name
+        if top == "play" and play.boss_mode and play.boss.boss is not None:
+            out["max_phase"] = max(out["max_phase"], play.boss.boss.phase)
+        if top == "gameover":
+            break
+        if top == "play" and play.bosses_defeated >= number and not play.boss_mode:
+            out["won"] = True
+            break
+    out["seconds"] = (i + 1) * DT
+    out["lives_left"] = play.lives
+    app.start_boss = 0
+    return out
+
 
 def autoplay(d: Driver, seconds: float) -> dict:
     app = d.app
+    app.start_boss = 0
     app.autoplay = True
     app.settings.fps_cap = 0
     app.scenes.switch("play")
@@ -462,6 +662,7 @@ def autoplay(d: Driver, seconds: float) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--autoplay-seconds", type=float, default=90.0)
+    ap.add_argument("--boss-seconds", type=float, default=240.0, help="simulated time allowed per boss for the bot")
     ap.add_argument("--keep-data", action="store_true", help="do not delete the temp data dir")
     args = ap.parse_args()
 
@@ -475,6 +676,14 @@ def main() -> int:
         walk_menus(d)
         walk_game(d)
         walk_resize(d)
+        walk_boss(d)
+        for number in (1, 2, 3):                        # the bot must be able to beat every boss design
+            r = autoplay_boss(d, number, args.boss_seconds)
+            print("BOSS {n}: bot {res} in {seconds:.0f}s simulated, phase {max_phase}, lives left {lives_left}".format(
+                n=number, res="won" if r["won"] else "lost", **r))
+            check(r["won"], f"autoplay bot beats boss {number} ({r})")
+            if app.scenes.top_name != "play":
+                d.steps(5)
         stats = autoplay(d, args.autoplay_seconds)
         print("AUTOPLAY: {sim_seconds:.0f}s simulated, rounds={rounds}, max level={max_level}, "
               "best score={best_score}, update+draw avg={avg_ms:.2f} ms p95={p95_ms:.2f} ms "

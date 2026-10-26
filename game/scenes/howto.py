@@ -17,8 +17,10 @@ ROWS = [("common", None), ("rare", None), ("epic", None), ("bomb", None),
         ("powerup", "magnet"), ("powerup", "slow"), ("powerup", "wide"),
         ("powerup", "shield"), ("powerup", "heart")]
 
-ROW_TOP = 128
-ROW_H = 53
+ROW_TOP = 112
+ROW_H = 50              # item rows; slightly tighter than before to make room for the fire key and the boss tip
+CTRL_ROW_H = 38         # spacing of the two keycap rows
+CTRL_COL2 = 304         # x offset (inside the panel) of the second keycap column
 ICON_X = 62
 TEXT_X = 104
 CANVAS = 76             # each item is drawn into its own canvas, then soft-masked
@@ -54,8 +56,8 @@ class HowToScene(Scene):
         self.canvas = None
         self.mask = None
         self.menu = Menu([Button("ui.back", self._back, sound="ui_back")],
-                         config.LOGICAL_W // 2, config.LOGICAL_H - 74, 60, app=app, width=240,
-                         row_height=50, font_size=28, on_back=self._back)
+                         config.LOGICAL_W // 2, config.LOGICAL_H - 60, 60, app=app, width=240,
+                         row_height=46, font_size=28, on_back=self._back)
 
     def on_resize(self, old_w):
         self.bg = make_background(self.app)
@@ -113,7 +115,7 @@ class HowToScene(Scene):
         self.bg.draw(surf)
 
         title = neon_text(a, t("howto.title"), 50, PAL["purple"], "display")
-        surf.blit(title, title.get_rect(center=(cx, 46)))
+        surf.blit(title, title.get_rect(center=(cx, 42)))
 
         # Items panel
         panel = pg.Rect(14 + dx, ROW_TOP - 34, config.BASE_W - 28, ROW_H * len(ROWS) + 42)
@@ -146,21 +148,47 @@ class HowToScene(Scene):
         head = a.text(t("howto.controls"), 20, PAL["dim"], "bold")
         surf.blit(head, (panel.x + 18, y))
         y += 28
-        controls = ((("A", "D", "←", "→"), "howto.move"), (("P", "Esc"), "howto.pause"), (("F11",), "howto.fullscreen"))
-        col_x = (panel.x + 18, panel.x + 18, panel.x + 280)
-        rows_y = (y, y + 40, y + 40)
+        controls = ((("A", "D", "←", "→"), "howto.move"), (("P", "Esc"), "howto.pause"),
+                    (("Space",), "howto.fire"), (("F11",), "howto.fullscreen"))
+        col_x = (panel.x + 18, panel.x + CTRL_COL2, panel.x + 18, panel.x + CTRL_COL2)
+        rows_y = (y, y, y + CTRL_ROW_H, y + CTRL_ROW_H)
         for (keys, key), x, ry in zip(controls, col_x, rows_y):
             for k in keys:
                 r = draw_keycap(surf, a, k, (x, ry), 20)
                 x = r.right + 6
             lbl = a.text(t(key), 22, PAL["white"], "regular")
             surf.blit(lbl, lbl.get_rect(midleft=(x + 6, ry + 15)))
-        # Tip (shrunk if a translation is too long for one line)
-        tip_y = rows_y[-1] + 52
+        # Tips (the first shrinks if a translation is too long for one line; the boss tip wraps to two)
+        tip_y = rows_y[-1] + 48
         size = 21
         tip = a.text(t("howto.tip"), size, PAL["yellow"], "regular")
         while tip.get_width() > config.BASE_W - 32 and size > 15:
             size -= 1
             tip = a.text(t("howto.tip"), size, PAL["yellow"], "regular")
         surf.blit(tip, tip.get_rect(center=(cx, tip_y)))
+        boss_lines, bsize = self._wrap_tip(a, t("howto.boss_tip"), config.BASE_W - 40, 2)
+        by = tip_y + 25
+        for ln in boss_lines:
+            img = a.text(ln, bsize, PAL["orange"], "regular")
+            surf.blit(img, img.get_rect(center=(cx, by)))
+            by += img.get_height() - 2
         self.menu.draw(surf)
+
+    @staticmethod
+    def _wrap_tip(a, text: str, max_w: int, max_lines: int, size: int = 20) -> tuple:
+        """Word-wrap `text` to max_lines lines, shrinking the font if needed. Returns (lines, size)."""
+        while True:
+            font = a.font(size, "regular")
+            lines, line = [], ""
+            for word in text.split():
+                trial = f"{line} {word}".strip()
+                if line and font.size(trial)[0] > max_w:
+                    lines.append(line)
+                    line = word
+                else:
+                    line = trial
+            if line:
+                lines.append(line)
+            if len(lines) <= max_lines or size <= 14:
+                return lines, size
+            size -= 1

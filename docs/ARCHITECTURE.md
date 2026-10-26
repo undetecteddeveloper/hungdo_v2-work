@@ -40,6 +40,8 @@ hungdo_v2/
     ui/      widgets.py hud.py                          (UI)
     scenes/  menu.py settings_scene.py pause.py gameover.py howto.py  (UI)
     scenes/  play.py                                    (INTEGRATION)
+    BOSS:    systems/boss.py systems/boss_bot.py entities/boss_items.py render/boss_draw.py
+             ui/boss_ui.py scenes/boss_reward.py        (see "Boss fights" below)
   lang/ vi.json en.json      # (UI owns keys; CORE creates initial files with core keys)
   assets/
     font/                    # copied Barlow Condensed (+ optional display font)
@@ -144,7 +146,7 @@ class SceneManager:
     def push(self, name, **kw); def pop(self)
     @property top
 ```
-Scene names: `"menu"`, `"play"`, `"pause"`, `"settings"`, `"gameover"`, `"howto"`.
+Scene names: `"menu"`, `"play"`, `"pause"`, `"settings"`, `"gameover"`, `"howto"`, `"confirm_quit"`, `"boss_reward"`.
 Switch/push/pop requested during update/handle_event are applied at end of frame (deferred) to avoid mutation mid-iteration.
 
 ### app.py — `App`
@@ -157,7 +159,8 @@ Starts in `"menu"`.
 Automation hooks (needed by tools/smoke_test.py and the exe self-test):
 - `App(argv=None)` parses: `--autoplay` (sets `app.autoplay = True`; play scene then drives the player with a simple bot and
   the menu auto-starts a game), `--smoke-seconds N` (quit cleanly with exit code 0 after N seconds of wall time),
-  `--start-scene NAME`.
+  `--start-scene NAME`, `--data-dir PATH`, `--start-boss N` (`app.start_boss`: practice, every round starts at boss N right after
+  the countdown, level 10*N; the high score is not saved).
 - `App.step(frame_dt: float | None = None)` runs exactly one frame (events → fixed updates → draw → present); `run()` loops it.
   Tests call `step(1/60)` repeatedly and inject input via `pg.event.post(...)`.
 - Any uncaught exception in `run()` is logged with traceback to `user_data_dir()/crash.log` and re-raised (exit code ≠ 0).
@@ -234,6 +237,53 @@ COUNTDOWN_SECONDS = 3
   apply live via `app.apply_settings()`; resolution change applies immediately), `pause` (overlay: Resume / Settings / Main menu),
   `gameover` (score, level, best combo, NEW RECORD animation, Retry (Enter) / Menu (Esc)), `howto` (shows each item shape + effect, controls).
 - `lang/vi.json` and `lang/en.json` must have identical key sets. Vietnamese strings with full diacritics.
+
+## Boss fights
+Every `config.BOSS_EVERY` (10) levels the ordinary game stops and a boss fight starts. All tunables are in the `#Boss fights`
+block at the bottom of `config.py` (hp, damage, timings, upgrade steps); `set_upgrade_mults()` / `UPGRADE_MULT` carry the
+boss-reward upgrades into `player_w()`, `player_*speed*()` and `magnet_radius()` (reset every round).
+
+Boss number `n` (n=1 at level 10) uses design `kind = (n-1) % 3` and repeats with `cycle = (n-1)//3`: hp x(1 + 0.35 cycle), attacks
+x(1 + 0.20 cycle). Three designs: 0 Hex Core (orange), 1 Prism (magenta), 2 Void Eye (purple); each has its own attack pool per phase.
+
+### State machine (`systems/boss.py`, `BossController.state`)
+`idle -> intro (BOSS_INTRO_TIME, no shots, not damageable) -> fight -> enrage (after BOSS_TIME_LIMIT, one way) -> victory
+(hp 0, BOSS_VICTORY_TIME of explosion) -> done -> stop() -> idle`. Phases change at hp 66% and 33% (`BOSS_STAGGER_TIME` calm).
+```python
+c = BossController(rng)
+boss = c.start(number)                       # Boss: kind, number, cycle, name_key, colors, pos, half_w, half_h, hp, max_hp,
+                                             #       phase, hit_flash, charge, enraged, anim_t, death_t, hp_frac, rect
+tick = c.update(dt, player_x, balls_alive)   # BossTick: shots [Shot], drops [Drop], events [str]
+c.damage(amount, source)  -> hp removed (0 unless fighting)       c.sweep_hits(rect) -> bool (marks the Sweep consumed)
+c.hit_rect (None unless damageable)   c.sweeps [Sweep]   c.time_left   c.paddle_scale   c.on_resize(old_w)
+```
+Events: `intro_end charge volley sweep_warn sweep_fire phase2 phase3 enrage dead done`. `Shot(x, y, vx, vy, radius, shape, color)`
+becomes an `entities.boss_items.Projectile`; `Drop(kind="ball"|"energy", x)` becomes a `HelperBall` / `EnergyItem`. The only special
+attack is the `Sweep`: a vertical danger band (warning, then a beam that may glide across `zone`), hits once, always escapable.
+Fairness (tests): every volley leaves a reachable safe spot for the real `Player` with 0.3 s reaction at widths 540, 960, 1960.
+
+### Objects (`entities/boss_items.py`)
+`Projectile` (straight line, `hits(rect)` circle-vs-rect), `EnergyItem` (falls, magnet-able), `HelperBall` (`falling` until the paddle
+touches it, then `flying` at constant `BOSS_BALL_SPEED`; paddle bounce angle follows the hit position, walls/ceiling reflect, boss hit
+deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns events `caught paddle wall ceiling boss lost`),
+`Beam(x, y_from, boss_rect)` (hitscan resolved at creation). Every object has `on_resize(old_w)`.
+
+### Rules in `scenes/play.py`
+- Level reaches `next_boss_level` -> ordinary items vanish (no penalty), `warning` + `boss_intro`, `boss.start(n)`; level and ordinary
+  spawns are frozen, score only comes from damage (`BOSS_POINTS_PER_HP` per hp) and the defeat bonus (`BOSS_CLEAR_BONUS * bosses`).
+- A shot or sweep touching the paddle behaves like a bomb (shield soaks it, else -1 life) then `BOSS_HIT_IFRAMES` of invulnerability
+  (the paddle blinks). A flying ball falling past the paddle costs a life; helpers falling past cost nothing.
+- Catching `BOSS_ENERGY_NEED` (3) energy items (hold up to `BOSS_ENERGY_CAP`) arms the beam: Space fires straight up from the paddle.
+- Defeat: field cleared, lives refilled, bonus added, `push("boss_reward", options, number, bonus, owned, on_pick)`; the chosen
+  upgrade (`wide magnet life power speed`, max `UPGRADE_MAX_STACK` each, until the round ends) is applied, then normal play resumes
+  after `RESUME_GRACE` and `next_boss_level += BOSS_EVERY`.
+- `slow` power-up scales falling things (projectiles, falling helpers), never boss timers, sweeps or flying balls.
+- HUD gets `state["boss"]` (None outside a fight): name key, number, kind, state, hp_frac, phase, time_left, enraged, colors,
+  energy / energy_need / energy_cap, balls, player_x, boss_x, boss_half_w. Banners: `ui/boss_ui.py` (`draw_boss_banner`,
+  `draw_victory_banner`, `draw_callout`).
+- Autoplay bot (`PlayScene._boss_*`, `systems/boss_bot.py`): plans the paddle path against every shot and sweep zone, aims at
+  the goal (energy items, lining up under the boss) and fires the beam; by default (`bot_balls = False`) it ignores helper balls.
+- Sounds (synthesised by `tools/synth_sfx.py`): `boss_intro boss_hit beam_charge beam_fire boss_defeat warning`.
 
 ## Performance rules
 - All loaded/created surfaces `convert()`/`convert_alpha()`; caches for glow, text, icons; no `pg.font.Font(...)` outside Assets.
