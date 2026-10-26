@@ -71,7 +71,7 @@ class PlayScene(Scene):
         self.powerups = PowerUps()
         self.combo = Combo()
         self.boss = BossController(self.rng)
-        self.bot_balls = False                  # autoplay: ignore helper balls (a hit is worth 2.5% hp, a lost ball a life)
+        self.bot_balls = True                   # autoplay: go for helper balls (they are the only source of energy)
         self.items = []
         self._flash_surf = None
         self._prewarmed = False
@@ -85,7 +85,7 @@ class PlayScene(Scene):
         self.level = 1
         self.max_lives = config.MAX_LIVES
         self.lives = config.START_LIVES
-        # Boss fight state (see docs/BOSS_DESIGN.md)
+        # Boss fight state (see docs/ARCHITECTURE.md "Boss fights")
         self.boss.stop()
         self.boss_mode = False
         self.next_boss_level = config.BOSS_EVERY
@@ -95,6 +95,7 @@ class PlayScene(Scene):
         self.helpers = []                       # EnergyItem + HelperBall
         self.beams = []
         self.energy = 0
+        self.ball_hits = 0                      # ball hits on the boss since the last energy item
         self.hurt_timer = 0.0                   # invulnerability after a boss hit
         self.callout = None                     # [text, colour, age]
         self.victory_bonus = 0
@@ -171,6 +172,8 @@ class PlayScene(Scene):
         for obj in self.projectiles + self.helpers + self.beams:
             obj.on_resize(old_w)                # scales x (and trails) by LOGICAL_W / old_w
         self.boss.on_resize(old_w)
+        if config.LOGICAL_W < old_w:
+            self.projectiles.clear()            # a narrowed row of shots could leave a gap smaller than the paddle
         self._flash_surf = None                 # the red vignette is sized to the canvas
         self.spawner.clear_pending()            # landing predictions were for the old width
         self.texts.clear()
@@ -339,6 +342,7 @@ class PlayScene(Scene):
         self.spawner.clear_pending()
         self.combo.break_()
         self.energy = 0
+        self.ball_hits = 0
         self.hurt_timer = 0.0
         self._death_fx_t = 0.0
         self.projectiles.clear()
@@ -434,6 +438,8 @@ class PlayScene(Scene):
                 self._open_reward()
 
     def _on_boss_dead(self) -> None:
+        if self.state != "playing":
+            return                                  # the last life went in the same step: no reward for the dead
         self.stats["bosses"] = self.stats.get("bosses", 0) + 1
         self.bosses_defeated += 1
         self.victory_bonus = config.BOSS_CLEAR_BONUS * self.bosses_defeated
@@ -451,7 +457,7 @@ class PlayScene(Scene):
         log.info("Boss %d defeated: score=%d lives=%d", self.bosses_defeated, self.score, self.lives)
 
     def _open_reward(self) -> None:
-        if self.reward_open:
+        if self.reward_open or self.state != "playing":
             return
         self.reward_open = True
         pool = [k for k in config.BOSS_UPGRADES if self.upgrades[k] < config.UPGRADE_MAX_STACK
@@ -512,10 +518,10 @@ class PlayScene(Scene):
             self._damage_boss(config.BOSS_BEAM_DAMAGE, (x, beam.y_to), True)
         return True
 
-    def _damage_boss(self, amount: float, pos, heavy: bool) -> None:
+    def _damage_boss(self, amount: float, pos, heavy: bool) -> float:
         dealt = self.boss.damage(amount * self._power_mult(), "beam" if heavy else "ball")
         if dealt <= 0:
-            return
+            return 0.0
         pts = int(round(dealt * config.BOSS_POINTS_PER_HP))
         self.score += pts
         self.stats["boss_damage"] = self.stats.get("boss_damage", 0.0) + dealt
@@ -525,6 +531,18 @@ class PlayScene(Scene):
             boss_draw.boss_hit_fx(self.particles, pos, self._boss_color(), heavy)
         b = self.boss.boss
         self._popup(f"+{pts}", (pos[0], b.pos.y + b.half_h + 24), PAL["white"], 30 if heavy else 24)
+        return dealt
+
+    def _ball_hit_boss(self, pos) -> None:
+        """A ball hit counts towards the next energy item, which falls from the boss (beam hits do not count)."""
+        if self._damage_boss(config.BOSS_BALL_DAMAGE, pos, False) <= 0:
+            return
+        self.ball_hits += 1
+        if self.ball_hits % config.BOSS_HITS_PER_ENERGY == 0 and self.boss.fighting:
+            b = self.boss.boss
+            x = min(max(b.pos.x + self.rng.uniform(-0.4, 0.4) * b.half_w, 30), config.LOGICAL_W - 30)
+            self.helpers.append(EnergyItem(x, b.pos.y + b.half_h))
+            self._popup(t("boss.energy"), (x, b.pos.y + b.half_h + 52), PAL["yellow"], 24)
 
     def _collect_energy(self, h) -> None:
         before = self.energy
@@ -550,7 +568,7 @@ class PlayScene(Scene):
             self.app.audio.play("catch", 0.55)
             self.player.bump(0.3)
         elif ev == "boss":
-            self._damage_boss(config.BOSS_BALL_DAMAGE, ball.pos, False)
+            self._ball_hit_boss(ball.pos)
         elif ev == "lost":
             self._on_miss(ball, t("boss.ball_lost"))
 
@@ -813,11 +831,11 @@ class PlayScene(Scene):
         ctrl, half = self.boss, self.player.width / 2
         b = ctrl.boss
         if b is None:
-            return config.LOGICAL_W / 2, None, None
+            return config.LOGICAL_W / 2, None, None, False, None
         flying = [h for h in self.helpers if isinstance(h, HelperBall) and h.alive and h.state == "flying"]
         if flying:
             # A ball coming down is worth a life: be under it. Hit it so that it comes back near the boss
-            # (a ball sent across the field is lost), preferring returns that touch the boss on the way.
+            # to where it was caught (a ball sent across the field is lost), preferring returns that touch the boss.
             tm, lx, _ = min((self._ball_flight(h.pos.x, h.pos.y, h.vel.x, h.vel.y, h.radius, ctrl.hit_rect)
                              for h in flying), key=lambda f: f[0])
             y_line = config.PLAYER_Y - config.PLAYER_H / 2 - config.BOSS_BALL_RADIUS
@@ -826,12 +844,12 @@ class PlayScene(Scene):
                 ang = o * math.radians(config.BOSS_BALL_MAX_ANGLE)
                 _, rx, hit = self._ball_flight(lx, y_line, sp * math.sin(ang), -sp * math.cos(ang),
                                                config.BOSS_BALL_RADIUS, ctrl.hit_rect)
-                cost = abs(rx - b.pos.x) - (80.0 if hit else 0.0) + 15.0 * abs(o)
+                cost = abs(rx - lx) - (150.0 if hit else 0.0) + 15.0 * abs(o)     # back where it was caught = no running
                 if best is None or cost < best[0]:
                     best = (cost, o)
-            return lx - best[1] * half, tm + 0.15, 0.3 * half
+            return lx - best[1] * half, tm + 0.15, 0.5 * half, False, tm
         if ctrl.fighting and self.energy >= config.BOSS_ENERGY_NEED:
-            return b.pos.x, 1.0, 0.6 * half
+            return b.pos.x, 1.0, 0.6 * half, False, None
         ts = max(self.powerups.time_scale, 0.05)
         px = self.player.pos.x
         pick = None
@@ -844,8 +862,8 @@ class PlayScene(Scene):
             if abs(h.pos.x - px) - half * 0.6 <= self._reach(eta) and (pick is None or eta < pick[0]):
                 pick = (eta, h.pos.x)
         if pick is not None:
-            return pick[1], pick[0] + 0.15, 0.6 * half
-        return b.pos.x, None, 0.6 * half
+            return pick[1], pick[0] + 0.15, 0.6 * half, False, pick[0]
+        return b.pos.x, None, 0.6 * half, False, None
 
     def _boss_bot_target(self) -> float:
         """Spot nearest to the goal whose approach path the planner finds clean of shots and sweeps."""
@@ -856,8 +874,9 @@ class PlayScene(Scene):
                       for h in self.helpers if isinstance(h, HelperBall) and h.alive and h.state == "falling"]
         sweeps = [(sw.zone[0], sw.zone[1], max(0.0, sw.warn_time - sw.age), sw.warn_time + sw.fire_time - sw.age)
                   for sw in self.boss.sweeps if sw.phase != "done" and not sw.consumed]
-        goal, until, tol = self._boss_goal()
-        return boss_bot.choose(self.player.pos.x, self.player.vel.x, self.player.width, goal, shots, sweeps, until, tol)
+        goal, until, tol, commit, arrive = self._boss_goal()
+        return boss_bot.choose(self.player.pos.x, self.player.vel.x, self.player.width, goal, shots, sweeps, until, tol,
+                               commit, arrive)
 
     def _bot_fire(self) -> None:
         ctrl = self.boss
@@ -896,7 +915,7 @@ class PlayScene(Scene):
         }
 
     def _boss_hud(self):
-        """The HUD's view of the fight (see docs/BOSS_DESIGN.md 5.1), None outside a boss fight."""
+        """The HUD's view of the fight (see 5.1), None outside a boss fight."""
         b = self.boss.boss
         if not self.boss_mode or b is None:
             return None

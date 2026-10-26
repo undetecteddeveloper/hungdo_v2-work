@@ -180,7 +180,7 @@ class App:
             os.environ["HUNGDO_DATA_DIR"] = os.path.abspath(args.data_dir)
         setup_logging()
         self.autoplay = bool(args.autoplay)
-        self.start_boss = max(0, int(args.start_boss))      # 0 = normal game
+        self.start_boss = max(0, min(config.MAX_START_BOSS, int(args.start_boss)))   # 0 = normal game
         self.smoke_seconds = args.smoke_seconds
         self.exit_code = 0
         self.running = True

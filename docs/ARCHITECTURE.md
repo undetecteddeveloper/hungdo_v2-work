@@ -258,7 +258,7 @@ c.damage(amount, source)  -> hp removed (0 unless fighting)       c.sweep_hits(r
 c.hit_rect (None unless damageable)   c.sweeps [Sweep]   c.time_left   c.paddle_scale   c.on_resize(old_w)
 ```
 Events: `intro_end charge volley sweep_warn sweep_fire phase2 phase3 enrage dead done`. `Shot(x, y, vx, vy, radius, shape, color)`
-becomes an `entities.boss_items.Projectile`; `Drop(kind="ball"|"energy", x)` becomes a `HelperBall` / `EnergyItem`. The only special
+becomes an `entities.boss_items.Projectile`; `Drop(kind="ball", x)` becomes a `HelperBall`; energy items are created by play.py (`EnergyItem(x, y)`). The only special
 attack is the `Sweep`: a vertical danger band (warning, then a beam that may glide across `zone`), hits once, always escapable.
 Fairness (tests): every volley leaves a reachable safe spot for the real `Player` with 0.3 s reaction at widths 540, 960, 1960.
 
@@ -273,7 +273,8 @@ deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns 
   spawns are frozen, score only comes from damage (`BOSS_POINTS_PER_HP` per hp) and the defeat bonus (`BOSS_CLEAR_BONUS * bosses`).
 - A shot or sweep touching the paddle behaves like a bomb (shield soaks it, else -1 life) then `BOSS_HIT_IFRAMES` of invulnerability
   (the paddle blinks). A flying ball falling past the paddle costs a life; helpers falling past cost nothing.
-- Catching `BOSS_ENERGY_NEED` (3) energy items (hold up to `BOSS_ENERGY_CAP`) arms the beam: Space fires straight up from the paddle.
+- Energy items only come from the ball: every `BOSS_HITS_PER_ENERGY` (2) ball hits on the boss one falls from the boss (beam hits
+  do not count). Catching `BOSS_ENERGY_NEED` (3) energy items (hold up to `BOSS_ENERGY_CAP`) arms the beam: Space fires straight up from the paddle.
 - Defeat: field cleared, lives refilled, bonus added, `push("boss_reward", options, number, bonus, owned, on_pick)`; the chosen
   upgrade (`wide magnet life power speed`, max `UPGRADE_MAX_STACK` each, until the round ends) is applied, then normal play resumes
   after `RESUME_GRACE` and `next_boss_level += BOSS_EVERY`.
@@ -282,7 +283,7 @@ deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns 
   energy / energy_need / energy_cap, balls, player_x, boss_x, boss_half_w. Banners: `ui/boss_ui.py` (`draw_boss_banner`,
   `draw_victory_banner`, `draw_callout`).
 - Autoplay bot (`PlayScene._boss_*`, `systems/boss_bot.py`): plans the paddle path against every shot and sweep zone, aims at
-  the goal (energy items, lining up under the boss) and fires the beam; by default (`bot_balls = False`) it ignores helper balls.
+  the goal (energy items, lining up under the boss) and fires the beam; it goes for the helper balls (the only source of energy) but is weak at juggling a ball while dodging: it often loses.
 - Sounds (synthesised by `tools/synth_sfx.py`): `boss_intro boss_hit beam_charge beam_fire boss_defeat warning`.
 
 ## Performance rules

@@ -95,7 +95,7 @@ SFX_NAMES = [
     "bomb", "powerup", "shield_break", "heart",
     "combo_up", "level_up", "countdown", "go",
     "ui_move", "ui_select", "ui_back", "game_over", "new_record",
-    # boss fights (docs/BOSS_DESIGN.md)
+    # boss fights (docs/ARCHITECTURE.md "Boss fights")
     "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
 ]
 # Shipped as .wav (no Vorbis encoder was available); AudioManager also tries .ogg with the same stem
@@ -195,7 +195,7 @@ def spawn_rate_mult() -> float:
     return field_scale() ** RATE_EXP
 
 
-#Boss fights (docs/BOSS_DESIGN.md owns the meaning of every value; tune them here only)
+#Boss fights (owns the meaning of every value; tune them here only)
 BOSS_EVERY = 10                     # a boss fight starts when the level reaches a multiple of this
 BOSS_KINDS = 3                      # distinct boss designs; boss number n uses design (n - 1) % 3
 BOSS_Y = 250                        # boss centre line (logical px); the paddle is at PLAYER_Y
@@ -221,15 +221,15 @@ BOSS_BALL_RADIUS = 11
 BOSS_BALL_MAX_ANGLE = 60.0          # degrees from vertical for a hit on the paddle edge
 BOSS_BALL_MIN_VY = 0.30             # |vy| / speed never drops below this (no endless sideways rally)
 BOSS_MAX_BALLS = 2                  # balls alive at once; the boss controller stops dropping more
-BOSS_BALL_INTERVAL = 5.0            # s between helper-ball drops
-BOSS_ENERGY_INTERVAL = 3.2          # s between energy-item drops
-BOSS_FIRST_ENERGY = 1.5             # s after the fight starts
+BOSS_BALL_INTERVAL = 5.0            # s between helper-ball drops (the ball is the only source of energy)
+BOSS_HITS_PER_ENERGY = 2            # ball hits on the boss that make it drop one energy item (beam hits do not count)
 BOSS_FIRST_BALL = 3.0
 BOSS_HELPER_JITTER = 0.25           # +-fraction of the interval, random
 BOSS_HELPER_TERMINAL = 300          # px/s: falling speed cap of helper items
 BOSS_BEAM_LIFE = 0.35               # s the player's beam stays visible
 BOSS_BEAM_WIDTH = 36                # px, full width of the player's beam
 BOSS_HIT_IFRAMES = 1.0              # s of invulnerability after a boss hit
+MAX_START_BOSS = 9                  # --start-boss cap: level 90 is the last level difficulty.MAX_LEVEL (99) can reach
 BOSS_UPGRADES = ("wide", "magnet", "life", "power", "speed")   # reward choices (3 of these are offered)
 UPGRADE_MAX_STACK = 3               # times one upgrade can be taken in a run
 UPGRADE_WIDE_STEP = 0.20            # paddle width +20% per stack

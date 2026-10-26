@@ -81,7 +81,7 @@
   "howto.fullscreen": "Fullscreen",
   "howto.fire": "Fire beam (when charged)",
   "howto.tip": "Dropping a good item costs 1 life. Keep catching to build your combo!",
-  "howto.boss_tip": "Every 10 levels a boss appears: catch the bouncing ball to hit it, collect 3 energy and press Space to fire the beam!",
+  "howto.boss_tip": "Every 10 levels a boss appears: catch the bouncing ball to hit it. Every 2 ball hits drop 1 energy; collect 3 and press Space to fire the beam!",
 
   "hud.level": "LV {n}",
   "hud.best": "BEST {score}",

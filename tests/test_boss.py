@@ -854,7 +854,7 @@ def test_drops():
 
     def hook(ctrl, tick, t):
         for d in tick.drops:
-            assert isinstance(d, Drop) and d.kind in ("ball", "energy")
+            assert isinstance(d, Drop) and d.kind == "ball"
             drops.append((t, d.kind, d.x))
     # Pretend balls die: balls_alive follows a script
     balls = {"n": 0}
@@ -869,11 +869,10 @@ def test_drops():
             balls["n"] = 0
         if c.state == "enrage" and i % 1000 == 0:
             pass
-    en = [d for d in drops if d[1] == "energy"]
     ba = [d for d in drops if d[1] == "ball"]
-    assert approx(en[0][0], config.BOSS_FIRST_ENERGY, 0.05) and approx(ba[0][0], config.BOSS_FIRST_BALL, 0.05)
+    assert approx(ba[0][0], config.BOSS_FIRST_BALL, 0.05)
     j = config.BOSS_HELPER_JITTER
-    for kind, series, interval in (("energy", en, config.BOSS_ENERGY_INTERVAL), ("ball", ba, config.BOSS_BALL_INTERVAL)):
+    for kind, series, interval in (("ball", ba, config.BOSS_BALL_INTERVAL),):
         gaps = [b[0] - a[0] for a, b in zip(series, series[1:]) if not (95 <= a[0] <= 135)]
         assert all(interval * (1 - j) - 0.03 <= g <= interval * (1 + j) + 0.03 for g in gaps), (kind, min(gaps), max(gaps))
         assert abs(sum(gaps) / len(gaps) - interval) < 0.25 * interval * j + 0.1
@@ -881,7 +880,7 @@ def test_drops():
     assert not [d for d in ba if 100 + 0.01 < d[0] < 130]            # MAX_BALLS respected
     first_after = min(d[0] for d in ba if d[0] >= 130)
     assert first_after < 131.0                                       # retried within ~0.5 s once a ball is free
-    assert len({round(d[2]) for d in en}) > len(en) * 0.8            # spread out, not a fixed x
+    assert len({round(d[2]) for d in ba}) > len(ba) * 0.8            # spread out, not a fixed x
     # not aimed at the player: x is independent of the player's x
     for px in (60.0, 480.0):
         c2 = to_fight(BossController(random.Random(5)), 1, px=px)

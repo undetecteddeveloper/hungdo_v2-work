@@ -78,7 +78,7 @@ def first_hit(xs: np.ndarray, width: float, shots: np.ndarray, sweeps: list, mar
 
 
 def choose(x0: float, v0: float, width: float, goal: float, shots: list, sweeps: list, until: float = None,
-           tol: float = None) -> float:
+           tol: float = None, commit: bool = False, arrive: float = None) -> float:
     """Paddle centre to steer to: the spot nearest to `goal` whose approach path is clean.
 
     `until` (s): the goal only has to be reached and used within this time (catching a ball, firing a beam),
@@ -107,6 +107,24 @@ def choose(x0: float, v0: float, width: float, goal: float, shots: list, sweeps:
                 xs = paths[c] = path(x0, v0, c, width)
             if first_hit(xs, width, arr, sweeps, margin, n) >= n:
                 return c
+    if arrive is not None:
+        # Wait where we are and dash over just in time (standing at the goal early is what gets us hit)
+        for margin in (0.12 * width, 5.0):
+            for c in near:
+                xs = paths.get(c)
+                if xs is None:
+                    xs = paths[c] = path(x0, v0, c, width)
+                reached = np.nonzero(np.abs(xs[:MOVE_STEPS] - c) < 6.0)[0]
+                t_go = (int(reached[0]) + 1) * STEP if len(reached) else MOVE_STEPS * STEP
+                dk = int(max(0.0, arrive - t_go - 0.10) / STEP)
+                if dk <= 0 or dk > 80:
+                    continue
+                late = path(x0, 0.0, c, width)
+                xs2 = np.concatenate((np.full(dk, x0), late))[:N_LOOK]
+                if first_hit(xs2, width, arr, sweeps, margin, n) >= n:
+                    return x0
+    if commit:      # a lost ball costs a life just like a hit does: stay with the ball, delaying the hit if possible
+        return max(near, key=lambda c: first_hit(paths.setdefault(c, path(x0, v0, c, width)), width, arr, sweeps, 5.0, n))
     best, best_key = x0, None
     for margin in (0.35 * width, 0.12 * width, 5.0):           # prefer roomy spots, settle for tight ones
         for c in cands:

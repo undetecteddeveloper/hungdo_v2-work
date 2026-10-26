@@ -234,7 +234,7 @@ def sfx_new_record():
     return echo(mix((run, 0), (chord, 0.6), (sparkle, 0.7)), 0.13, 0.3, 3)
 
 
-#Boss fight SFX (docs/BOSS_DESIGN.md section 6)
+#Boss fight SFX (section 6)
 def _ramp(n: int, start: float, end: float, power: float = 1.0) -> np.ndarray:
     """0 before `start` s, rising 0..1 (to `power`) until `end` s, then 1."""
     t = np.arange(n) / SR

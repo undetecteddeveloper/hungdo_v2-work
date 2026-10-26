@@ -1,7 +1,7 @@
 """Boss drawing + boss sound tests (plain asserts, no pytest).
 
 Boss / Sweep / Beam come from other modules, so they are faked with SimpleNamespace carrying exactly the
-fields listed in docs/BOSS_DESIGN.md.
+fields listed in docs/ARCHITECTURE.md "Boss fights".
 
 Run from hungdo_v2/:   python -m tests.test_boss_draw
 """

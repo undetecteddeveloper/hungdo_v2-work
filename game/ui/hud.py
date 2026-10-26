@@ -3,7 +3,7 @@
 Hud(app).draw(surf, state) with state = {
     "score", "best", "lives", "max_lives", "level", "level_progress" (0..1),
     "combo", "multiplier", "powerups": [(name, remaining, duration)], "shield": int,
-    "boss": None | {...} }          # boss fight data, see docs/BOSS_DESIGN.md section 5.1
+    "boss": None | {...} }          # boss fight data, see section 5.1
 With a boss the level bar, best line and combo badge give way to the boss header (name, clock, hp bar)
 plus the energy meter and the beam aim hint. State without "boss" draws exactly as before.
 Text surfaces are re-rendered only when the shown value changes.

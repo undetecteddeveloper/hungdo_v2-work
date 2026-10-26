@@ -3,7 +3,7 @@
 Pure logic (no drawing, no entities import). PlayScene calls `BossController.update()` every physics
 step and turns `BossTick.shots` / `BossTick.drops` into Projectiles / helper items.
 
-Fairness rules (docs/BOSS_DESIGN.md 3.5) are built into the planner: every volley is checked against the
+Fairness rules (3.5) are built into the planner: every volley is checked against the
 same conservative paddle model the tests use (the player reacts after REACT s, then runs flat out) and
 re-rolled until a comfortable safe spot is reachable before the first shot gets to the paddle line.
 Fans get a gate carved into them, rows get one gap, aimed shots lock onto the player's x at fire time
@@ -131,7 +131,7 @@ class Shot:
 @dataclass
 class Drop:
     """Request for one helper item at the top of the screen."""
-    kind: str                   # "ball" | "energy"
+    kind: str                   # "ball" (energy items are dropped by play.py after ball hits)
     x: float
 
 
@@ -613,7 +613,6 @@ class BossController:
         self._fire_sent = False
         self._clear_at = 0.0                # fight time when the last fired shot has left the paddle band
         self._recent = []                   # last attack names
-        self._energy_t = config.BOSS_FIRST_ENERGY
         self._ball_t = config.BOSS_FIRST_BALL
         self._vx = 0.0
         self._target = None
@@ -1006,10 +1005,7 @@ class BossController:
         return interval * self.rng.uniform(1.0 - j, 1.0 + j)
 
     def _step_drops(self, dt: float, balls_alive: int, tick: BossTick) -> None:
-        self._energy_t -= dt
-        if self._energy_t <= 0.0:
-            tick.drops.append(Drop("energy", self._drop_x()))
-            self._energy_t = self._jitter(config.BOSS_ENERGY_INTERVAL)
+        # Energy items are not scheduled: play.py drops one every BOSS_HITS_PER_ENERGY ball hits on the boss
         self._ball_t -= dt
         if self._ball_t <= 0.0:
             if balls_alive < config.BOSS_MAX_BALLS:
