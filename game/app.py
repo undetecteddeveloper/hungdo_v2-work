@@ -24,8 +24,9 @@ SCENE_MODULES = {
     "gameover": (".scenes.gameover", ("GameOverScene", "GameoverScene")),
     "howto": (".scenes.howto", ("HowToScene", "HowtoScene")),
     "confirm_quit": (".scenes.confirm_quit", ("ConfirmQuitScene",)),
+    "boss_reward": (".scenes.boss_reward", ("BossRewardScene",)),
 }
-OVERLAY_PLACEHOLDERS = {"pause", "settings", "confirm_quit"}
+OVERLAY_PLACEHOLDERS = {"pause", "settings", "confirm_quit", "boss_reward"}
 SETTINGS_SAVE_DELAY = 0.4     # seconds to wait after the last change before writing settings.json
 
 MOUSE_EVENTS = (pg.MOUSEMOTION, pg.MOUSEBUTTONDOWN, pg.MOUSEBUTTONUP)
@@ -75,6 +76,8 @@ def parse_args(argv) -> argparse.Namespace:
     p.add_argument("--smoke-seconds", type=float, default=None, help="quit with code 0 after N wall seconds")
     p.add_argument("--start-scene", default="menu", help="initial scene name")
     p.add_argument("--data-dir", default=None, help="override user data directory")
+    p.add_argument("--start-boss", type=int, default=0, metavar="N",
+                   help="practice: every round starts at boss N (level 10*N); high scores are not saved")
     args, unknown = p.parse_known_args(argv)
     if unknown:
         log.warning("Ignoring unknown arguments: %s", unknown)
@@ -177,6 +180,7 @@ class App:
             os.environ["HUNGDO_DATA_DIR"] = os.path.abspath(args.data_dir)
         setup_logging()
         self.autoplay = bool(args.autoplay)
+        self.start_boss = max(0, int(args.start_boss))      # 0 = normal game
         self.smoke_seconds = args.smoke_seconds
         self.exit_code = 0
         self.running = True

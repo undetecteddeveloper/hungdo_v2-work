@@ -95,6 +95,8 @@ SFX_NAMES = [
     "bomb", "powerup", "shield_break", "heart",
     "combo_up", "level_up", "countdown", "go",
     "ui_move", "ui_select", "ui_back", "game_over", "new_record",
+    # boss fights (docs/BOSS_DESIGN.md)
+    "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
 ]
 # Shipped as .wav (no Vorbis encoder was available); AudioManager also tries .ogg with the same stem
 SOUND_FILES = {name: f"assets/sound/{name}.wav" for name in SFX_NAMES}
@@ -157,12 +159,20 @@ WIDTH_EXP = 0.5                     # paddle width and magnet radius
 RATE_EXP = 0.6                      # spawn rate
 
 
+# Run upgrades won as boss rewards (see BOSS_UPGRADES). PlayScene sets them, resets them every round.
+UPGRADE_MULT = {"wide": 1.0, "magnet": 1.0, "speed": 1.0}
+
+
+def set_upgrade_mults(wide: float = 1.0, magnet: float = 1.0, speed: float = 1.0) -> None:
+    UPGRADE_MULT["wide"], UPGRADE_MULT["magnet"], UPGRADE_MULT["speed"] = wide, magnet, speed
+
+
 def player_w() -> float:
-    return PLAYER_W * field_scale() ** WIDTH_EXP
+    return PLAYER_W * field_scale() ** WIDTH_EXP * UPGRADE_MULT["wide"]
 
 
 def player_speed_mult() -> float:
-    return field_scale() ** SPEED_EXP
+    return field_scale() ** SPEED_EXP * UPGRADE_MULT["speed"]
 
 
 def player_max_speed() -> float:
@@ -178,8 +188,52 @@ def player_friction() -> float:
 
 
 def magnet_radius() -> float:
-    return MAGNET_RADIUS * field_scale() ** WIDTH_EXP
+    return MAGNET_RADIUS * field_scale() ** WIDTH_EXP * UPGRADE_MULT["magnet"]
 
 
 def spawn_rate_mult() -> float:
     return field_scale() ** RATE_EXP
+
+
+#Boss fights (docs/BOSS_DESIGN.md owns the meaning of every value; tune them here only)
+BOSS_EVERY = 10                     # a boss fight starts when the level reaches a multiple of this
+BOSS_KINDS = 3                      # distinct boss designs; boss number n uses design (n - 1) % 3
+BOSS_Y = 250                        # boss centre line (logical px); the paddle is at PLAYER_Y
+BOSS_MARGIN = 24                    # min gap between the boss body and a side wall
+BOSS_INTRO_TIME = 2.8               # s: warning banner + boss descends, nothing hurts yet
+BOSS_VICTORY_TIME = 2.6             # s: death explosion before the reward scene
+BOSS_TIME_LIMIT = 90.0              # s of fight until the boss enrages (no instant loss)
+BOSS_PHASE_AT = (0.66, 0.33)        # hp fractions where phase 2 and phase 3 start
+BOSS_BASE_HP = 100.0                # "hp points"; damage values below are in the same unit
+BOSS_HP_GROWTH = 0.35               # hp x (1 + growth * cycle); cycle = (n - 1) // BOSS_KINDS
+BOSS_SPEED_GROWTH = 0.20            # attack speed x (1 + growth * cycle)
+BOSS_ENRAGE_RATE = 1.7              # enraged: time between attacks is divided by this
+BOSS_ENRAGE_SPEED = 1.15            # enraged: projectile speed multiplier
+BOSS_STAGGER_TIME = 1.0             # s without attacks right after a phase change
+BOSS_BEAM_DAMAGE = 17.0             # one beam shot (~17% of a fresh boss)
+BOSS_BALL_DAMAGE = 2.5              # one ball hit (~2.5%)
+BOSS_POINTS_PER_HP = 20             # score for every hp point of damage dealt
+BOSS_CLEAR_BONUS = 1000             # x number of bosses defeated so far (including this one)
+BOSS_ENERGY_NEED = 3                # energy items per beam shot
+BOSS_ENERGY_CAP = 6                 # items you can hold (two shots); more are wasted
+BOSS_BALL_SPEED = 620.0             # px/s, constant while the ball flies
+BOSS_BALL_RADIUS = 11
+BOSS_BALL_MAX_ANGLE = 60.0          # degrees from vertical for a hit on the paddle edge
+BOSS_BALL_MIN_VY = 0.30             # |vy| / speed never drops below this (no endless sideways rally)
+BOSS_MAX_BALLS = 2                  # balls alive at once; the boss controller stops dropping more
+BOSS_BALL_INTERVAL = 5.0            # s between helper-ball drops
+BOSS_ENERGY_INTERVAL = 3.2          # s between energy-item drops
+BOSS_FIRST_ENERGY = 1.5             # s after the fight starts
+BOSS_FIRST_BALL = 3.0
+BOSS_HELPER_JITTER = 0.25           # +-fraction of the interval, random
+BOSS_HELPER_TERMINAL = 300          # px/s: falling speed cap of helper items
+BOSS_BEAM_LIFE = 0.35               # s the player's beam stays visible
+BOSS_BEAM_WIDTH = 36                # px, full width of the player's beam
+BOSS_HIT_IFRAMES = 1.0              # s of invulnerability after a boss hit
+BOSS_UPGRADES = ("wide", "magnet", "life", "power", "speed")   # reward choices (3 of these are offered)
+UPGRADE_MAX_STACK = 3               # times one upgrade can be taken in a run
+UPGRADE_WIDE_STEP = 0.20            # paddle width +20% per stack
+UPGRADE_MAGNET_STEP = 0.40          # magnet radius +40% per stack
+UPGRADE_SPEED_STEP = 0.10           # paddle speed +10% per stack
+UPGRADE_POWER_STEP = 0.25           # ball and beam damage +25% per stack
+MAX_LIVES_CAP = 8                   # MAX_LIVES + "life" upgrades never exceed this
