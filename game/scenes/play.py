@@ -116,6 +116,24 @@ class PlayScene(Scene):
     def on_resume(self):
         self._sync_keys()
 
+    def on_resize(self, old_w: int) -> None:
+        """Canvas width changed mid-round (F11 / window size): keep the round going."""
+        k = config.LOGICAL_W / old_w
+        self.player.refit(old_w)
+        for it in self.items:
+            it.pos.x *= k
+            it.vel.x *= k
+            it.trail.clear()
+        self.spawner.clear_pending()            # landing predictions were for the old width
+        self.texts.clear()
+        if self.particles is not None:
+            self.particles.clear()
+        speed = getattr(self.bg, "speed", 1.0)
+        self.bg = make_background(self.app)
+        self.bg.set_accent(level_hue(self.level), instant=True)
+        if hasattr(self.bg, "speed"):
+            self.bg.speed = speed
+
     def _sync_keys(self) -> None:
         """Key events missed while another scene was on top: resync from the real keyboard."""
         keys = pg.key.get_pressed()
@@ -388,7 +406,7 @@ class PlayScene(Scene):
     def _reach(self, t: float) -> float:
         """Distance the paddle can surely cover in t seconds (conservative)."""
         t = max(0.0, t - 0.05)
-        a, v = config.PLAYER_ACCEL, config.PLAYER_MAX_SPEED
+        a, v = config.player_accel(), config.player_max_speed()
         ta = v / a
         return 0.5 * a * t * t if t <= ta else v * ta / 2 + v * (t - ta)
 
@@ -431,7 +449,7 @@ class PlayScene(Scene):
     def _bot_direction(self) -> int:
         target = self._bot_target()
         x, v = self.player.pos.x, self.player.vel.x
-        stop_x = x + v * abs(v) / (2 * config.PLAYER_FRICTION)    # where friction alone would stop us
+        stop_x = x + v * abs(v) / (2 * config.player_friction())    # where friction alone would stop us
         err = target - stop_x
         return _sign(err) if abs(err) > 5 else 0
 

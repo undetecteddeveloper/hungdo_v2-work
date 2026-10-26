@@ -19,13 +19,12 @@ DIAGONAL_VX = (70.0, 150.0)         # px/s sideways speed at level 1 (upper boun
 
 # Paddle model used for fairness (deliberately pessimistic vs. the real Player)
 HUMAN_FACTOR = 1.15                 # extra time a human needs vs. perfect input
-CATCH_TOLERANCE = config.PLAYER_W / 2   # paddle centre within this of the item x catches it
-TURN_TIME = config.PLAYER_MAX_SPEED / (config.PLAYER_ACCEL * config.PLAYER_TURN_BOOST)
+TURN_TIME = config.PLAYER_MAX_SPEED / (config.PLAYER_ACCEL * config.PLAYER_TURN_BOOST)   # same at any canvas width
 
 BOMB_REPEAT_TIME = 0.4              # s: no bomb directly above another one spawned this recently
-BOMB_MIN_DX = config.PLAYER_W * 0.9 # px: "directly above" = closer than this horizontally
+BOMB_MIN_DX_FACTOR = 0.9            # x paddle width: "directly above" = closer than this horizontally
 BOMB_GOOD_TIME = 0.35               # s: a bomb may not land this close in time to a good item ...
-BOMB_GOOD_DX = CATCH_TOLERANCE + 40 # px: ... at less than this horizontal distance
+BOMB_GOOD_DX_PAD = 40               # px added to the catch tolerance: ... at less than this horizontal distance
 MAX_BOMB_RUN = 2                    # never more than this many bombs in a row
 
 BURST_DX = 34                       # px between items in a burst line
@@ -36,12 +35,26 @@ PENDING_WINDOW = 3.0                # s: landings closer than this in time are c
 POWER_WEIGHTS = {"magnet": 3, "slow": 2, "wide": 3, "shield": 2, "heart": 1}
 
 
+#Paddle model helpers: sizes follow the canvas width (config.field_scale)
+def catch_tolerance() -> float:
+    """Paddle centre within this of the item x catches it."""
+    return config.player_w() / 2
+
+
+def bomb_min_dx() -> float:
+    return config.player_w() * BOMB_MIN_DX_FACTOR
+
+
+def bomb_good_dx() -> float:
+    return catch_tolerance() + BOMB_GOOD_DX_PAD
+
+
 #Paddle travel model (shared with tests)
 def travel_time(distance: float) -> float:
     """Seconds for the paddle to move `distance` px from rest (accel-limited, then max speed)."""
     if distance <= 0:
         return 0.0
-    a, v = config.PLAYER_ACCEL, config.PLAYER_MAX_SPEED
+    a, v = config.player_accel(), config.player_max_speed()
     d_acc = v * v / (2 * a)
     if distance <= d_acc:
         return math.sqrt(2 * distance / a)
@@ -50,7 +63,7 @@ def travel_time(distance: float) -> float:
 
 def fair_time(distance: float) -> float:
     """Time the fairness rule demands between two catches `distance` px apart."""
-    need = distance - CATCH_TOLERANCE
+    need = distance - catch_tolerance()
     if need <= 0:
         return 0.0
     return HUMAN_FACTOR * (TURN_TIME + travel_time(need))
@@ -61,10 +74,10 @@ def fair_distance(gap: float) -> float:
     t = gap / HUMAN_FACTOR - TURN_TIME
     reach = 0.0
     if t > 0:
-        a, v = config.PLAYER_ACCEL, config.PLAYER_MAX_SPEED
+        a, v = config.player_accel(), config.player_max_speed()
         t_acc = v / a
         reach = 0.5 * a * t * t if t <= t_acc else v * v / (2 * a) + v * (t - t_acc)
-    return CATCH_TOLERANCE + reach
+    return catch_tolerance() + reach
 
 
 class Spawner:
@@ -82,6 +95,11 @@ class Spawner:
         self._bomb_run = 0
         self._last_power = None
         self.spawned = 0            # stats (debug/tests)
+
+    def clear_pending(self) -> None:
+        """Forget predicted landings (the field width changed under them)."""
+        self._pending = []
+        self._bombs = []
 
     #Main tick
     def update(self, dt: float, params) -> list:
@@ -105,7 +123,7 @@ class Spawner:
                 out.extend(items)
                 jitter = self.rng.uniform(1 - SPAWN_JITTER, 1 + SPAWN_JITTER)
                 # Bursts count as more than one spawn so the overall rate stays fair
-                self._spawn_timer = params.spawn_interval * jitter * (1 + 0.6 * extra)
+                self._spawn_timer = params.spawn_interval / config.spawn_rate_mult() * jitter * (1 + 0.6 * extra)
             else:
                 self._spawn_timer = RETRY_DELAY
 
@@ -150,7 +168,7 @@ class Spawner:
 
     def _near_bomb(self, t_land: float, x: float) -> bool:
         for _, _, bt, bx in self._bombs:
-            if abs(bt - t_land) < BOMB_GOOD_TIME and abs(bx - x) < BOMB_GOOD_DX:
+            if abs(bt - t_land) < BOMB_GOOD_TIME and abs(bx - x) < bomb_good_dx():
                 return True
         return False
 
@@ -238,7 +256,7 @@ class Spawner:
             bomb = self._make("bomb", x, None, vx, vy, params)
             t_fall, x_land = bomb.predict_landing(params.gravity)
             t_land = self.time + t_fall
-            if any(abs(t_land - pt) < BOMB_GOOD_TIME and abs(x_land - px) < BOMB_GOOD_DX
+            if any(abs(t_land - pt) < BOMB_GOOD_TIME and abs(x_land - px) < bomb_good_dx()
                    for pt, px, _ in self._pending):
                 continue
             self._bombs.append([self.time, x, t_land, x_land])
@@ -247,7 +265,7 @@ class Spawner:
 
     def _bomb_too_close(self, x: float) -> bool:
         """Rule: never a bomb directly above another bomb spawned within BOMB_REPEAT_TIME."""
-        return any(self.time - bt < BOMB_REPEAT_TIME and abs(bx - x) < BOMB_MIN_DX
+        return any(self.time - bt < BOMB_REPEAT_TIME and abs(bx - x) < bomb_min_dx()
                    for bt, bx, _, _ in self._bombs)
 
     #Power-ups

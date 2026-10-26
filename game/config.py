@@ -8,15 +8,42 @@ TITLE = "Hứng Đồ v2"
 LOGGER_NAME = "hungdo"
 DATA_DIR_NAME = "HungDo"            # %APPDATA%/HungDo
 
-LOGICAL_SIZE = (540, 840)
-LOGICAL_W, LOGICAL_H = LOGICAL_SIZE
+# The canvas is always LOGICAL_H tall; its width follows the screen/window aspect between the
+# original portrait width (BASE_W) and MAX_ASPECT. Display.apply() calls set_logical_width().
+BASE_W = 540
+LOGICAL_H = 840
+MAX_ASPECT = 21 / 9
+LOGICAL_W = BASE_W
+LOGICAL_SIZE = (LOGICAL_W, LOGICAL_H)
+
+
+def max_logical_width() -> int:
+    return round(LOGICAL_H * MAX_ASPECT)
+
+
+def logical_width_for(aspect: float) -> int:
+    """Canvas width for a window of width/height `aspect`, clamped to the supported range."""
+    return max(BASE_W, min(max_logical_width(), round(LOGICAL_H * aspect)))
+
+
+def set_logical_width(w: int) -> None:
+    global LOGICAL_W, LOGICAL_SIZE
+    LOGICAL_W = int(w)
+    LOGICAL_SIZE = (LOGICAL_W, LOGICAL_H)
+
+
+def field_scale() -> float:
+    """Playfield width relative to the original portrait canvas (1.0 on a 540 wide canvas)."""
+    return LOGICAL_W / BASE_W
+
 
 PHYSICS_HZ = 120
 PHYSICS_DT = 1 / PHYSICS_HZ
 MAX_STEPS_PER_FRAME = 6
 
-RESOLUTIONS = [(360, 560), (450, 700), (540, 840), (630, 980), (720, 1120)]  # filtered at runtime to fit desktop
-DESKTOP_MARGIN_Y = 80               # taskbar + title bar room when filtering resolutions
+WINDOW_HEIGHT_FRACTIONS = (0.55, 0.7, 0.85, 1.0)   # windowed sizes: share of the usable desktop height
+MIN_WINDOW_H = 360
+DESKTOP_MARGIN_Y = 80               # taskbar + title bar room when sizing windows
 FPS_OPTIONS = [30, 60, 120, 144, 0]  # 0 = unlimited
 LANGUAGES = ["vi", "en"]
 DEFAULT_LANGUAGE = "vi"
@@ -121,3 +148,38 @@ GOOD_KINDS = ("common", "rare", "epic")
 POWERUP_NAMES = ["magnet", "slow", "wide", "shield", "heart"]
 TIMED_POWERUPS = ("magnet", "slow", "wide")
 DIFFICULTY_MAX_LEVEL = 15           # difficulty params stop scaling here
+
+# A wider canvas (see field_scale) keeps the feel of the 540 wide original: the paddle gets
+# faster and wider, and items spawn more often, but all less than proportionally so the
+# opening stays easy. Tune the exponents here.
+SPEED_EXP = 0.75                    # paddle speed / acceleration / friction ~ field_scale ** SPEED_EXP
+WIDTH_EXP = 0.5                     # paddle width and magnet radius
+RATE_EXP = 0.6                      # spawn rate
+
+
+def player_w() -> float:
+    return PLAYER_W * field_scale() ** WIDTH_EXP
+
+
+def player_speed_mult() -> float:
+    return field_scale() ** SPEED_EXP
+
+
+def player_max_speed() -> float:
+    return PLAYER_MAX_SPEED * player_speed_mult()
+
+
+def player_accel() -> float:
+    return PLAYER_ACCEL * player_speed_mult()
+
+
+def player_friction() -> float:
+    return PLAYER_FRICTION * player_speed_mult()
+
+
+def magnet_radius() -> float:
+    return MAGNET_RADIUS * field_scale() ** WIDTH_EXP
+
+
+def spawn_rate_mult() -> float:
+    return field_scale() ** RATE_EXP

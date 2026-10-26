@@ -56,6 +56,14 @@ def init_mixer() -> bool:
         return False
     try:
         pg.mixer.init(config.MIXER_FREQUENCY, -16, 2, config.MIXER_BUFFER)
+        if not pg.mixer.get_init():
+            # The probe above already started SDL's audio subsystem, which turns the first
+            # mixer.init() into a silent no-op (no error, no device). Reopening fixes it.
+            pg.mixer.quit()
+            pg.mixer.init(config.MIXER_FREQUENCY, -16, 2, config.MIXER_BUFFER)
+        if not pg.mixer.get_init():
+            log.warning("Audio disabled: mixer did not open the playback device")
+            return False
         return True
     except pg.error as e:
         log.warning("Audio disabled (mixer init failed): %s", e)

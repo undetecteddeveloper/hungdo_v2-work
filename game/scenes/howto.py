@@ -57,6 +57,11 @@ class HowToScene(Scene):
                          config.LOGICAL_W // 2, config.LOGICAL_H - 74, 60, app=app, width=240,
                          row_height=50, font_size=28, on_back=self._back)
 
+    def on_resize(self, old_w):
+        self.bg = make_background(self.app)
+        self.menu.center_x = config.LOGICAL_W // 2
+        self.menu.layout()
+
     def _back(self):
         if len(self.app.scenes.stack_names) > 1:
             self.app.scenes.pop()
@@ -104,13 +109,14 @@ class HowToScene(Scene):
         a = self.app.assets
         tm = self.app.time
         cx = config.LOGICAL_W // 2
+        dx = (config.LOGICAL_W - config.BASE_W) // 2     # the content column is BASE_W wide
         self.bg.draw(surf)
 
         title = neon_text(a, t("howto.title"), 50, PAL["purple"], "display")
         surf.blit(title, title.get_rect(center=(cx, 46)))
 
         # Items panel
-        panel = pg.Rect(14, ROW_TOP - 34, config.LOGICAL_W - 28, ROW_H * len(ROWS) + 42)
+        panel = pg.Rect(14 + dx, ROW_TOP - 34, config.BASE_W - 28, ROW_H * len(ROWS) + 42)
         surf.blit(translucent_panel(panel.w, panel.h, (8, 10, 30), 200, 18), panel)
         pg.draw.rect(surf, (48, 54, 100), panel, 2, border_radius=18)
         head = a.text(t("howto.items"), 20, PAL["dim"], "bold")
@@ -124,16 +130,16 @@ class HowToScene(Scene):
                 self.canvas.fill((0, 0, 0))
                 item.draw(self.canvas, tm, a)
                 self.canvas.blit(self.mask, (0, 0), special_flags=pg.BLEND_MULT)
-                surf.blit(self.canvas, self.canvas.get_rect(center=(ICON_X, cy)), special_flags=pg.BLEND_ADD)
+                surf.blit(self.canvas, self.canvas.get_rect(center=(ICON_X + dx, cy)), special_flags=pg.BLEND_ADD)
             else:
                 r = 11 if kind == "epic" else 16
-                draw_item_shape(surf, kind, (ICON_X, cy), r, tm, 0.0, power, a)
+                draw_item_shape(surf, kind, (ICON_X + dx, cy), r, tm, 0.0, power, a)
             color = POWER_COLORS.get(power, PAL["green"]) if power else KIND_COLORS[kind]
             name, desc = self._desc(kind, power)
             nt = a.text(name, 25, color, "bold")
             dt_ = a.text(desc, 22, (200, 206, 232), "regular")
-            surf.blit(nt, nt.get_rect(bottomleft=(TEXT_X, cy + 2)))
-            surf.blit(dt_, dt_.get_rect(topleft=(TEXT_X, cy + 1)))
+            surf.blit(nt, nt.get_rect(bottomleft=(TEXT_X + dx, cy + 2)))
+            surf.blit(dt_, dt_.get_rect(topleft=(TEXT_X + dx, cy + 1)))
 
         # Controls
         y = panel.bottom + 12
@@ -153,7 +159,7 @@ class HowToScene(Scene):
         tip_y = rows_y[-1] + 52
         size = 21
         tip = a.text(t("howto.tip"), size, PAL["yellow"], "regular")
-        while tip.get_width() > config.LOGICAL_W - 32 and size > 15:
+        while tip.get_width() > config.BASE_W - 32 and size > 15:
             size -= 1
             tip = a.text(t("howto.tip"), size, PAL["yellow"], "regular")
         surf.blit(tip, tip.get_rect(center=(cx, tip_y)))

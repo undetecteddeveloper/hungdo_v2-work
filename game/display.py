@@ -1,4 +1,4 @@
-"""Display: OS window + fixed logical canvas, letterboxed scaling."""
+"""Display: OS window + logical canvas (fixed height, width follows the window aspect), scaled to fit."""
 import logging
 import math
 import os
@@ -33,7 +33,8 @@ def _make_fallback_icon() -> pg.Surface:
 
 
 class Display:
-    """One instance lives at app.display. Everything draws onto `surface` (LOGICAL_SIZE)."""
+    """One instance lives at app.display. Everything draws onto `surface` (config.LOGICAL_SIZE,
+    which apply() resizes whenever the window aspect changes)."""
 
     def __init__(self):
         os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
@@ -52,14 +53,44 @@ class Display:
         self._scaled = None
         self._bars = []
         self._smooth_ok = True
+        self._resized_from = None               # previous canvas width until App takes it
 
     #Window setup
     def available_resolutions(self) -> list:
-        """RESOLUTIONS that fit the desktop height (minus a margin); never empty."""
+        """Windowed sizes: fractions of the usable desktop height at the desktop aspect; never empty."""
         dw, dh = _desktop_size()
-        fit = [r for r in config.RESOLUTIONS
-               if r[1] <= dh - config.DESKTOP_MARGIN_Y and r[0] <= dw]
-        return fit or [config.RESOLUTIONS[0]]
+        usable_h = dh - config.DESKTOP_MARGIN_Y
+        aspect = min(dw / dh, config.MAX_ASPECT)
+        sizes = []
+        for f in config.WINDOW_HEIGHT_FRACTIONS:
+            h = int(usable_h * f) // 2 * 2
+            if h < config.MIN_WINDOW_H:
+                continue
+            size = (min(dw, int(h * aspect) // 2 * 2), h)
+            if size not in sizes:
+                sizes.append(size)
+        if not sizes:
+            h = config.MIN_WINDOW_H
+            sizes.append((min(dw, int(h * aspect) // 2 * 2), h))
+        return sizes
+
+    def take_resize(self):
+        """Canvas width before the last change (once), or None if it did not change."""
+        old, self._resized_from = self._resized_from, None
+        return old
+
+    def _fit_canvas(self) -> None:
+        """Resize the logical canvas to the window's aspect ratio."""
+        ww, wh = pg.display.get_surface().get_size()
+        w = config.logical_width_for(ww / max(1, wh))
+        if w == config.LOGICAL_W and self.surface.get_size() == config.LOGICAL_SIZE:
+            return
+        old = config.LOGICAL_W
+        config.set_logical_width(w)
+        self.surface = pg.Surface(config.LOGICAL_SIZE).convert()
+        self._converted = True
+        if old != w and self._resized_from is None:
+            self._resized_from = old
 
     def _clamp_resolution(self, res) -> tuple:
         avail = self.available_resolutions()
@@ -110,6 +141,7 @@ class Display:
         self.fullscreen = bool(settings.fullscreen)
         self._mode = (True, None) if self.fullscreen else (False, self.resolution)
 
+        self._fit_canvas()
         if not self._converted:
             self.surface = self.surface.convert()
             self._converted = True
@@ -127,7 +159,7 @@ class Display:
             return
         self._win_size = size
         ww, wh = size
-        lw, lh = config.LOGICAL_SIZE
+        lw, lh = self.surface.get_size()
         self.scale = min(ww / lw, wh / lh)
         dw, dh = max(1, round(lw * self.scale)), max(1, round(lh * self.scale))
         ox, oy = (ww - dw) // 2, (wh - dh) // 2

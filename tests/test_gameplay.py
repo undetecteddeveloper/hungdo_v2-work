@@ -231,7 +231,7 @@ def test_bomb_spacing():
             for t2, x2 in bombs[i + 1:]:
                 if t2 - t1 >= spawner_mod.BOMB_REPEAT_TIME:
                     break
-                assert abs(x2 - x1) >= spawner_mod.BOMB_MIN_DX, (t1, x1, t2, x2)
+                assert abs(x2 - x1) >= spawner_mod.bomb_min_dx(), (t1, x1, t2, x2)
     # Level 1 never spawns bombs
     landings, bombs = simulate_spawns(1, 60.0, seed=3)
     assert not bombs
@@ -470,6 +470,34 @@ def test_highscore():
             paths.user_data_dir = original
 
 
+def test_canvas_width():
+    base = config.LOGICAL_W
+    try:
+        assert config.logical_width_for(16 / 9) == round(config.LOGICAL_H * 16 / 9)
+        assert config.logical_width_for(9 / 14) == config.BASE_W              # narrower than portrait -> clamped
+        assert config.logical_width_for(5.0) == config.max_logical_width()    # ultra-wide -> capped at 21:9
+        config.set_logical_width(config.BASE_W)
+        assert config.field_scale() == 1.0 and config.player_w() == config.PLAYER_W
+        assert config.player_max_speed() == config.PLAYER_MAX_SPEED
+        config.set_logical_width(1492)
+        k = config.field_scale()
+        assert 2.7 < k < 2.8
+        # Wider field -> faster/wider paddle and denser spawns, all less than proportionally
+        assert config.PLAYER_MAX_SPEED < config.player_max_speed() < config.PLAYER_MAX_SPEED * k
+        assert config.PLAYER_W < config.player_w() < config.PLAYER_W * k
+        assert 1.0 < config.spawn_rate_mult() < k
+        # Fair-spacing model follows the scaled paddle
+        assert spawner_mod.fair_distance(0.5) > 0
+        p = Player()
+        assert abs(p.pos.x - 746) < 1 and abs(p.width - config.player_w()) < 1e-6
+        p.refit(1492)
+        config.set_logical_width(config.BASE_W)
+        p.refit(1492)
+        assert 0 <= p.pos.x <= config.BASE_W and abs(p.width - config.PLAYER_W) < 1e-6
+    finally:
+        config.set_logical_width(base)
+
+
 def test_draw_smoke():
     """Drawing works with and without assets (neon module may or may not exist yet)."""
     pg.display.init()
@@ -493,6 +521,7 @@ def test_draw_smoke():
 
 
 TESTS = [
+    test_canvas_width,
     test_level_thresholds, test_difficulty_monotonic, test_reachability, test_spawner_fairness,
     test_bomb_spacing, test_spawner_items, test_player_walls, test_player_physics, test_item_physics,
     test_combo, test_powerups, test_highscore, test_draw_smoke,

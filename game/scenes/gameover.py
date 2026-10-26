@@ -43,6 +43,14 @@ class GameOverScene(Scene):
         ], cx, 642, 70, app=app, width=280, row_height=54, font_size=30)
 
     #Scene hooks
+    def on_resize(self, old_w):
+        self.bg = make_background(self.app)
+        self.bg.set_accent(PAL["magenta"] if self.is_new_record else PAL["red"], instant=True)
+        if self.particles is not None:
+            self.particles.clear()
+        self.menu.center_x = config.LOGICAL_W // 2
+        self.menu.layout()
+
     def on_enter(self, score=0, level=1, best_combo=0, is_new_record=False, **kwargs):
         self.score = int(score)
         self.level = max(1, int(level))

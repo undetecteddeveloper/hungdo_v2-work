@@ -24,6 +24,9 @@ class Scene:
     def handle_event(self, event):
         """Mouse events already carry LOGICAL pos (or were dropped if outside)."""
 
+    def on_resize(self, old_w: int):
+        """The canvas width changed (config.LOGICAL_W): rebuild width-dependent layout/backgrounds."""
+
     def update(self, dt):
         """Fixed timestep (config.PHYSICS_DT)."""
 
@@ -160,6 +163,14 @@ class SceneManager:
             self._stack[-1][1].on_resume()
         else:
             log.warning("Scene stack is empty after pop")
+
+    def relayout(self, old_w: int) -> None:
+        """Tell every created scene (stacked or cached) that the canvas width changed."""
+        for name, scene in list(self._instances.items()):
+            try:
+                scene.on_resize(old_w)
+            except Exception:
+                log.exception("Scene '%s' failed to relayout", name)
 
     #Frame helpers (used by App)
     def handle_event(self, event) -> None:

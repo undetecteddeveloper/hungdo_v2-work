@@ -11,7 +11,7 @@ import pygame as pg
 from .. import config
 from . import neon
 
-W, H = config.LOGICAL_SIZE
+H = config.LOGICAL_H
 HORIZON_Y = int(H * 0.65)           # grid fills the bottom ~35 %
 GRID_H = H - HORIZON_Y
 ACCENT_TIME = 1.5                   # seconds for set_accent() to blend
@@ -20,7 +20,7 @@ ACCENT_TIME = 1.5                   # seconds for set_accent() to blend
 Z_NEAR = 1.0
 GRID_DZ = 0.32                      # depth between horizontal lines
 GRID_MIN_GAP = 4.0                  # stop drawing lines once they are this close (px)
-GRID_COLUMNS = 9                    # vertical lines each side of centre
+GRID_COLUMNS = 9                    # vertical lines each side of centre (at the base canvas width)
 GRID_SPACING_BOTTOM = 74            # px between vertical lines at the bottom edge
 SCROLL_PERIOD = 1.1                 # seconds for one line to move one slot toward the viewer
 GRID_BRIGHTNESS = 0.55
@@ -31,7 +31,7 @@ SUN_RADIUS = 92
 SUN_BRIGHTNESS = 0.15
 
 # Stars
-STAR_COUNT = 90
+STAR_COUNT = 90                     # at the base canvas width; scales with width
 STAR_LEVELS = 10
 STAR_COLOR = (205, 220, 255)
 
@@ -60,6 +60,7 @@ def _blur(surf: pg.Surface, factor: int, radius: int) -> pg.Surface:
 class Background:
     def __init__(self, app=None, accent=None):
         self.app = app
+        self.W = W = config.LOGICAL_W              # canvas width this background was built for
         accent = neon.rgb(accent or config.LEVEL_HUES[0])
         self.accent = accent                    # current (lerped) colour, int tuple
         self._acc_from = accent
@@ -79,12 +80,14 @@ class Background:
         self._glow = self._glow_white.copy()
         self._grid_buf = self._vert_white.copy()
         self._star_sprites = self._build_star_sprites()
-        self._stars = [self._new_star(self.rng.uniform(0, HORIZON_Y)) for _ in range(STAR_COUNT)]
+        n_stars = int(STAR_COUNT * min(2.2, W / config.BASE_W))
+        self._stars = [self._new_star(self.rng.uniform(0, HORIZON_Y)) for _ in range(n_stars)]
         self._blits = []
         self._retint()
 
     #Pre-rendered layers
     def _build_base(self) -> pg.Surface:
+        W = self.W
         base = pg.Surface((W, H))
         top, bottom = config.PALETTE["bg_top"], config.PALETTE["bg_bottom"]
         for y in range(HORIZON_Y):
@@ -99,10 +102,12 @@ class Background:
         return _opaque(base)
 
     def _build_vertical_grid(self) -> pg.Surface:
+        W = self.W
         """White converging lines on black, faded toward the horizon, with a soft glow."""
         lines = pg.Surface((W, GRID_H))
         cx = W / 2
-        for k in range(-GRID_COLUMNS, GRID_COLUMNS + 1):
+        columns = max(GRID_COLUMNS, int(W / 2 / GRID_SPACING_BOTTOM) + 2)
+        for k in range(-columns, columns + 1):
             pg.draw.aaline(lines, (255, 255, 255), (cx, 0), (cx + k * GRID_SPACING_BOTTOM, GRID_H))
         glow = _blur(lines, 2, 3)
         glow.fill((150, 150, 150), special_flags=pg.BLEND_MULT)
@@ -117,6 +122,7 @@ class Background:
         return _opaque(lines)
 
     def _build_horizon_glow(self) -> pg.Surface:
+        W = self.W
         """White mask: wide soft glow band + striped synthwave sun sitting on the horizon."""
         hh = GLOW_HALF_H
         layer = pg.Surface((W, hh * 2))
@@ -164,6 +170,7 @@ class Background:
 
     def _new_star(self, y: float) -> list:
         rnd = self.rng
+        W = self.W
         size = rnd.choices((1, 2, 3), (70, 24, 6))[0]
         # [x, y, speed px/s, size, base brightness, twinkle phase, twinkle freq]
         return [rnd.uniform(0, W), y, rnd.uniform(3, 9) * size, size,
@@ -202,6 +209,7 @@ class Background:
 
     #Frame
     def update(self, dt: float) -> None:
+        W = self.W
         self.time += dt
         self._scroll = (self._scroll + dt * self.speed / SCROLL_PERIOD) % 1.0
         if self._acc_t < 1.0:
@@ -242,6 +250,7 @@ class Background:
             surf.fblits(blits, pg.BLEND_ADD)
 
     def _draw_grid(self, surf: pg.Surface) -> None:
+        W = self.W
         buf = self._grid_buf
         buf.blit(self._vert, (0, 0))
         accent = self.accent

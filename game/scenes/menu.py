@@ -88,6 +88,13 @@ class MenuScene(Scene):
         self.best = load_best()
         self.menu.dragging = None
 
+    def on_resize(self, old_w):
+        self.bg = make_background(self.app)
+        self.bg.set_accent(PAL["cyan"], instant=True)
+        self.shapes = [_DemoShape(self.rng, True) for _ in range(DEMO_COUNT)]
+        self.menu.center_x = config.LOGICAL_W // 2
+        self.menu.layout()
+
     def _play(self):
         self.app.scenes.switch("play")
 

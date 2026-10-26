@@ -197,6 +197,7 @@ class App:
         i18n.set_language(self.settings.language)
         self.display = Display()
         self.display.apply(self.settings)
+        self.display.take_resize()              # no scenes exist yet: nothing to relayout
         self.assets = Assets()
         self.audio = AudioManager(self.settings.music_volume, self.settings.sfx_volume)
         self.scenes = SceneManager(self)
@@ -237,6 +238,9 @@ class App:
     def apply_settings(self) -> None:
         """Push current settings into display/audio/i18n, then save them."""
         self.display.apply(self.settings)
+        old_w = self.display.take_resize()
+        if old_w is not None:
+            self.scenes.relayout(old_w)         # the canvas got wider/narrower (fullscreen, window size)
         self.audio.set_volumes(self.settings.music_volume, self.settings.sfx_volume)
         i18n.set_language(self.settings.language)
         # Sliders and held keys call this many times a second: write once things settle

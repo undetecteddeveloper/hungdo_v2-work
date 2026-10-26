@@ -25,8 +25,9 @@ class Player:
             x = config.LOGICAL_W / 2
         self.pos = pg.Vector2(x, config.PLAYER_Y)
         self.vel = pg.Vector2(0, 0)
-        self.width = float(config.PLAYER_W)
-        self.target_width = float(config.PLAYER_W)
+        self._wide = False
+        self.width = float(config.player_w())
+        self.target_width = self.width
         self.shield = 0
         self.direction = 0
         self.tilt = 0.0             # degrees, visual only
@@ -56,7 +57,16 @@ class Player:
 
     #Control
     def set_wide(self, active: bool) -> None:
-        self.target_width = config.PLAYER_W * (config.WIDE_FACTOR if active else 1.0)
+        self._wide = active
+        self.target_width = config.player_w() * (config.WIDE_FACTOR if active else 1.0)
+
+    def refit(self, old_canvas_w: float) -> None:
+        """Canvas width changed (fullscreen / window size): rescale width, keep the relative x."""
+        self.pos.x *= config.LOGICAL_W / old_canvas_w
+        self.target_width = config.player_w() * (config.WIDE_FACTOR if self._wide else 1.0)
+        self.width = self.target_width
+        self.vel.x = 0.0
+        self._clamp()
 
     def bump(self, strength: float = 0.6) -> None:
         """Small squash, e.g. when catching an item."""
@@ -69,14 +79,15 @@ class Player:
         vx = self.vel.x
 
         if direction:
-            accel = config.PLAYER_ACCEL
+            accel = config.player_accel()
             if vx * direction < 0:
                 accel *= config.PLAYER_TURN_BOOST      # snappier reversals
             vx += accel * direction * dt
-            vx = max(-config.PLAYER_MAX_SPEED, min(config.PLAYER_MAX_SPEED, vx))
+            top = config.player_max_speed()
+            vx = max(-top, min(top, vx))
         else:
             # Friction toward rest without overshooting zero
-            drop = config.PLAYER_FRICTION * dt
+            drop = config.player_friction() * dt
             vx = 0.0 if abs(vx) <= drop else vx - math.copysign(drop, vx)
 
         self.vel.x = vx
@@ -105,7 +116,7 @@ class Player:
         if vx * side > 0:                              # moving into the wall
             if abs(vx) > STOP_SPEED * 4:
                 self.wall_hit = side
-                self.impact = max(self.impact, min(1.0, abs(vx) / config.PLAYER_MAX_SPEED))
+                self.impact = max(self.impact, min(1.0, abs(vx) / config.player_max_speed()))
             bounce = -vx * config.WALL_BOUNCE
             # Holding toward the wall or a tiny rebound -> rest flush against it (no jitter)
             if self.direction == side or abs(bounce) < STOP_SPEED:
@@ -114,7 +125,7 @@ class Player:
 
     def _update_visuals(self, dt: float) -> None:
         k = 1.0 - math.exp(-VISUAL_RATE * dt)
-        speed = self.vel.x / config.PLAYER_MAX_SPEED
+        speed = self.vel.x / config.player_max_speed()
         self.tilt += (speed * TILT_MAX - self.tilt) * k
         self.stretch += (abs(speed) * STRETCH_MAX - self.stretch) * k
         self.impact = max(0.0, self.impact - dt * 5.0)
@@ -132,7 +143,7 @@ class Player:
         glow_rect_at(surf, (cx, cy), gw, int(h) // 2 * 2, color, radius=int(h / 2))
 
         # Speed after-images
-        speed = self.vel.x / config.PLAYER_MAX_SPEED
+        speed = self.vel.x / config.player_max_speed()
         if abs(speed) > 0.35:
             for i in (2, 1):
                 ghost = self._capsule(cx - self.vel.x * 0.018 * i, cy, w, h)

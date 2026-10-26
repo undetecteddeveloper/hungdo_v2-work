@@ -215,7 +215,7 @@ def translucent_panel(w: int, h: int, color, alpha: int, radius: int = 14) -> pg
 
 def dim_backdrop(alpha: int = 170) -> pg.Surface:
     """Full-canvas translucent dark layer for overlays (cached)."""
-    key = ("backdrop", alpha)
+    key = ("backdrop", alpha, config.LOGICAL_SIZE)
     surf = _fx_cache.get(key)
     if surf is None:
         surf = pg.Surface(config.LOGICAL_SIZE, pg.SRCALPHA)
@@ -366,8 +366,10 @@ class FallbackBackground:
         self.accent = PAL["cyan"]
         self.target = PAL["cyan"]
 
-    def set_accent(self, rgb) -> None:
+    def set_accent(self, rgb, instant: bool = False) -> None:
         self.target = tuple(rgb[:3])
+        if instant:
+            self.accent = self.target
 
     def update(self, dt: float) -> None:
         self.accent = lerp_color(self.accent, self.target, 1 - math.exp(-dt * 2.5))

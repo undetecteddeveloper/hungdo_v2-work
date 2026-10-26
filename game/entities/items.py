@@ -280,9 +280,10 @@ class Item:
         if dy < -config.PLAYER_H:                # already below the paddle
             return vx
         d = math.hypot(dx, dy * MAGNET_Y_STRETCH)
-        if d >= config.MAGNET_RADIUS:
+        radius = config.magnet_radius()
+        if d >= radius:
             return vx
-        k = 1.0 - d / config.MAGNET_RADIUS       # 0 at the edge, 1 at the paddle
+        k = 1.0 - d / radius       # 0 at the edge, 1 at the paddle
         # Homing: sideways speed that arrives over the paddle just as the item reaches it
         t_left = max(MAGNET_MIN_TIME, max(dy, 0.0) / max(self.vel.y, 120.0))
         desired = max(-MAGNET_MAX_VX, min(MAGNET_MAX_VX, dx / t_left))

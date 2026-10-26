@@ -74,6 +74,11 @@ class SettingsScene(Scene):
     def on_resume(self):
         self.menu.dragging = None
 
+    def on_resize(self, old_w):
+        self._bg = None
+        self.menu.center_x = config.LOGICAL_W // 2
+        self.menu.layout()
+
     def handle_event(self, event):
         self.menu.handle_event(event)
 

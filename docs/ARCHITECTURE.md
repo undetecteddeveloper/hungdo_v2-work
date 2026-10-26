@@ -54,7 +54,14 @@ hungdo_v2/
 All packages have `__init__.py`.
 
 ## Coordinate system & timing
-- Logical canvas: `config.LOGICAL_SIZE = (540, 840)`. All gameplay/UI coordinates are logical pixels.
+- Logical canvas: always `config.LOGICAL_H = 840` tall; its width `config.LOGICAL_W` follows the window aspect, between
+  `config.BASE_W = 540` (the original portrait width) and 21:9 (`config.MAX_ASPECT`). `Display.apply()` resizes it and calls
+  `config.set_logical_width()`; code must read `config.LOGICAL_W` / `config.LOGICAL_SIZE` at use time, never cache them at import.
+  After a change `SceneManager.relayout(old_w)` calls `Scene.on_resize(old_w)` on every created scene. All gameplay/UI
+  coordinates are logical pixels. Menu-style scenes stay centred; the Play field uses the full width.
+- Wide-canvas balance (`config.field_scale() = LOGICAL_W / BASE_W`): paddle speed/accel/friction scale with `SPEED_EXP`,
+  paddle width and magnet radius with `WIDTH_EXP`, spawn rate with `RATE_EXP`. Use `config.player_w()`, `player_max_speed()`,
+  `player_accel()`, `player_friction()`, `magnet_radius()`, `spawn_rate_mult()` instead of the raw `PLAYER_*` constants.
 - Fixed physics step: `config.PHYSICS_HZ = 120` → `update(dt)` always receives `dt = 1/120`.
   `App` accumulates real time, runs at most `config.MAX_STEPS_PER_FRAME = 6` updates per frame, then one `draw`.
 - `App.time` = total unpaused seconds since start (float), handy for animations.
@@ -66,7 +73,7 @@ All packages have `__init__.py`.
 TITLE = "Hứng Đồ v2"
 LOGICAL_SIZE = (540, 840); LOGICAL_W, LOGICAL_H
 PHYSICS_HZ = 120; PHYSICS_DT = 1 / PHYSICS_HZ; MAX_STEPS_PER_FRAME = 6
-RESOLUTIONS = [(360, 560), (450, 700), (540, 840), (630, 980), (720, 1120)]  # filtered at runtime to fit desktop
+WINDOW_HEIGHT_FRACTIONS = (0.55, 0.7, 0.85, 1.0)   # windowed sizes = these shares of the usable desktop height, at the desktop aspect
 FPS_OPTIONS = [30, 60, 120, 144, 0]   # 0 = unlimited
 LANGUAGES = ["vi", "en"]
 PALETTE = { "bg_top", "bg_bottom", "cyan", "magenta", "yellow", "green", "red", "orange", "purple", "white", "dim" }  # RGB tuples
@@ -118,7 +125,8 @@ class Settings:
 - `surface` — logical `pg.Surface(LOGICAL_SIZE)` everything draws onto.
 - `present()` — scale logical surface into the window letterboxed (black bars), `pg.transform.smoothscale` unless scale is exactly 1, then `pg.display.flip()`. Reuse the scaled target surface when size unchanged (no per-frame allocation where avoidable).
 - `to_logical(window_pos) -> (x, y) | None`.
-- `available_resolutions() -> list[tuple]` — RESOLUTIONS that fit desktop height minus ~80px (always at least the smallest).
+- `available_resolutions() -> list[tuple]` — windowed sizes from `WINDOW_HEIGHT_FRACTIONS` of (desktop height − ~80px) at the desktop aspect (never empty).
+- `take_resize() -> int | None` — previous canvas width if the last `apply()` changed it (App then relayouts the scenes).
 
 ### scene.py
 ```python

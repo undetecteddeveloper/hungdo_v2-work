@@ -119,6 +119,10 @@ def walk_menus(d: Driver) -> None:
     d.steps(40)
     check(d.stack == ["menu"], f"starts in menu (stack {d.stack})")
     check(not app.placeholders, f"no placeholder scenes ({sorted(app.placeholders)})")
+    # Regression: the mixer once claimed to be enabled while the device never opened (no sound at all)
+    check(app.audio.enabled == bool(pg.mixer.get_init()), "audio.enabled matches the real mixer state")
+    if app.audio.enabled:
+        check(app.audio.has("catch") and app.audio.has("ui_move"), "sound effects loaded")
     d.shot("menu")
 
     # How to play and back
@@ -247,6 +251,42 @@ def drop_miss(d: Driver, play) -> None:
     it = Item("common", x, config.PLAYER_Y + 10, vy=400)
     play.items.append(it)
     wait_for(d, lambda: not it.alive, 120, "missed item left the screen")
+
+
+def walk_resize(d: Driver) -> None:
+    """The canvas follows the window aspect; toggling fullscreen mid-round keeps the round."""
+    app = d.app
+    s = app.settings
+    opts = app.display.available_resolutions()
+    check(len(opts) >= 3, f"several window sizes offered ({opts})")
+    check(all(o[0] > o[1] for o in opts) or app.display.available_resolutions()[0][0] >= config.BASE_W * 0.6,
+          "window sizes follow the desktop aspect")
+    win = pg.display.get_surface().get_size()
+    check(config.LOGICAL_W == config.logical_width_for(win[0] / win[1]), "canvas width matches the window aspect")
+    check(app.display.surface.get_size() == config.LOGICAL_SIZE, "canvas surface matches config size")
+    check(d.stack == ["menu"], f"back at the menu ({d.stack})")
+    d.focus_to(d.top.menu, 0)
+    d.key(pg.K_RETURN)
+    play = play_scene(d)
+    d.steps(60 * 4)
+    old_w = config.LOGICAL_W
+    sizes = {old_w}
+    for fs in (True, False, True, False):
+        s.fullscreen = fs
+        app.apply_settings()
+        d.steps(20)
+        sizes.add(config.LOGICAL_W)
+        check(app.display.surface.get_size() == config.LOGICAL_SIZE, "canvas resized with the window")
+        check(d.stack == ["play"], f"round survives the resize ({d.stack})")
+        check(0 <= play.player.pos.x <= config.LOGICAL_W, "paddle stays inside the new canvas")
+        check(all(-50 <= it.pos.x <= config.LOGICAL_W + 50 for it in play.items), "items stay inside the new canvas")
+        check(play.bg.W == config.LOGICAL_W, "background rebuilt for the new width")
+    d.shot("resized_play")
+    d.key(pg.K_ESCAPE)                                  # pause, then back to the menu for the next walk
+    d.focus_to(d.top.menu, 2)
+    d.key(pg.K_RETURN)
+    check(d.stack == ["menu"], f"main menu again ({d.stack})")
+    check(d.top.menu.center_x == config.LOGICAL_W // 2, "menu re-centred for the canvas")
 
 
 def walk_game(d: Driver) -> None:
@@ -434,6 +474,7 @@ def main() -> int:
         check(os.path.normcase(paths.user_data_dir()) == os.path.normcase(TEMP_DATA), "user data dir is the temp dir")
         walk_menus(d)
         walk_game(d)
+        walk_resize(d)
         stats = autoplay(d, args.autoplay_seconds)
         print("AUTOPLAY: {sim_seconds:.0f}s simulated, rounds={rounds}, max level={max_level}, "
               "best score={best_score}, update+draw avg={avg_ms:.2f} ms p95={p95_ms:.2f} ms "
