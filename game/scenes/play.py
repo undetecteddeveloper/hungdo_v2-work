@@ -216,6 +216,8 @@ class PlayScene(Scene):
                 self.held[1] = True
             elif event.key in FIRE_KEYS:
                 self._fire_beam()
+            elif event.key == pg.K_F9:                      # CHEAT (temporary): jump straight to the next boss
+                self._cheat_boss()
         elif event.type == pg.KEYUP:
             if event.key in LEFT_KEYS:
                 self.held[-1] = False
@@ -499,6 +501,14 @@ class PlayScene(Scene):
         self.combo.reset()
         self.callout = None
         self.bg.set_accent(level_hue(self.level))
+        self._check_level()
+
+    def _cheat_boss(self) -> None:                          # CHEAT (temporary, remove after testing)
+        """F9: skip to the next boss fight. The round no longer counts for the high score."""
+        if self.state != "playing" or self.boss_mode:
+            return
+        self.practice = True
+        self.score = max(self.score, difficulty.score_for_level(self.next_boss_level))
         self._check_level()
 
     def _fire_beam(self) -> bool:
