@@ -109,11 +109,15 @@ class PlayScene(Scene):
     #Scene hooks
     def on_enter(self, **kwargs):
         self.reset_round()
+        self._sync_keys()                   # Retry while still holding A/D must keep moving
         self._prewarm()
         self.app.audio.play_music("game")
 
     def on_resume(self):
-        # Keys released while paused never reached us: resync from the real keyboard
+        self._sync_keys()
+
+    def _sync_keys(self) -> None:
+        """Key events missed while another scene was on top: resync from the real keyboard."""
         keys = pg.key.get_pressed()
         self.held[-1] = any(keys[k] for k in LEFT_KEYS)
         self.held[1] = any(keys[k] for k in RIGHT_KEYS)
@@ -235,9 +239,12 @@ class PlayScene(Scene):
         else:
             self._on_good(it, pos)
 
+    def _multiplier(self) -> int:
+        """Combo multiplier; level 1 stays at x1 so the easy opening lasts longer."""
+        return self.combo.multiplier if self.level >= 2 else 1
+
     def _on_good(self, it: Item, pos) -> None:
-        mult = self.combo.multiplier
-        pts = it.value * mult
+        pts = it.value * self._multiplier()
         self.score += pts
         self.stats["caught"] += 1
         up = self.combo.hit()
@@ -250,7 +257,7 @@ class PlayScene(Scene):
             if it.kind == "epic":
                 self.particles.ring(pos, it.color, radius=70)
         self._popup(f"+{pts}", (pos[0], pos[1] - 26), it.color, 30 if big else 26)
-        if up:
+        if up and self.level >= 2:
             m = self.combo.multiplier
             self.app.audio.play("combo_up")
             self._popup(f"x{m} COMBO", (self.player.pos.x, self.player.pos.y - 90), PAL["yellow"], 34)
@@ -438,7 +445,7 @@ class PlayScene(Scene):
             "level": self.level,
             "level_progress": difficulty.level_progress(self.score),
             "combo": self.combo.count,
-            "multiplier": self.combo.multiplier,
+            "multiplier": self._multiplier(),
             "powerups": self.powerups.active(),
             "shield": self.player.shield,
         }

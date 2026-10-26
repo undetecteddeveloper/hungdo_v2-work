@@ -289,6 +289,7 @@ class Item:
         max_dv = config.MAGNET_PULL * (0.6 + 0.4 * k) * dt
         dv = max(-max_dv, min(max_dv, desired - vx))
         self.magnetized = True
+        self.diagonal = False                    # once steered, leftover vx fades like any other item
         return vx + dv
 
     def predict_landing(self, gravity: float, target_y: float = None, max_time: float = 10.0):

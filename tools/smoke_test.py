@@ -202,6 +202,21 @@ def walk_menus(d: Driver) -> None:
     check(saved.get("show_fps") is True and abs(saved.get("music_volume", 0) - s.music_volume) < 1e-6,
           "settings.json reflects the changes")
 
+    # Quit asks for confirmation; Esc / Stay keeps the game running
+    d.focus_to(menu, 3)
+    d.key(pg.K_RETURN)
+    check(d.stack == ["menu", "confirm_quit"], f"Quit opens confirmation ({d.stack})")
+    check(app.running, "game still running while asked")
+    d.shot("confirm_quit")
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["menu"] and app.running, f"Esc on confirmation stays ({d.stack})")
+    d.focus_to(menu, 0)
+    d.key(pg.K_ESCAPE)                                  # Esc in menu jumps to Quit...
+    d.key(pg.K_ESCAPE)                                  # ...and Esc on Quit asks
+    check(d.stack == ["menu", "confirm_quit"], f"Esc on Quit asks too ({d.stack})")
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["menu"] and app.running, "stayed in game again")
+
 
 def play_scene(d: Driver):
     play = d.top
@@ -285,12 +300,14 @@ def walk_game(d: Driver) -> None:
     # Catches + combo multiplier
     for i in range(5):
         drop_on_player(d, play, "common")
-    check(play.score == 50 and play.combo.count == 5 and play.combo.multiplier == 2, "5 catches -> x2")
+    check(play.score == 50 and play.combo.count == 5 and play.combo.multiplier == 2, "5 catches -> combo x2")
+    check(play._multiplier() == 1, "level 1 keeps scoring at x1")
     drop_on_player(d, play, "rare")
-    check(play.score == 50 + 25 * 2, f"rare scored with x2 ({play.score})")
+    check(play.score == 50 + 25, f"rare scored with x1 on level 1 ({play.score})")
     drop_on_player(d, play, "epic")
-    check(play.score == 100 + 50 * 2, f"epic scored with x2 ({play.score})")
+    check(play.score == 75 + 50, f"epic scored with x1 on level 1 ({play.score})")
     check(play.level == 2, f"level up at 120+ ({play.level})")
+    check(play._multiplier() == 2, "combo multiplier applies from level 2")
     check(play.banner > 0, "level-up banner shown")
     d.steps(12)
     d.shot("play_levelup")

@@ -1,6 +1,7 @@
 """Best score / level / games played, persisted to user_data_dir()/save.json."""
 import json
 import logging
+import math
 import os
 
 from .. import config, paths
@@ -13,7 +14,7 @@ SAVE_VERSION = 1
 
 def _as_count(v) -> int:
     """Non-negative int from JSON, else 0."""
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
         return 0
     return max(0, int(v))
 

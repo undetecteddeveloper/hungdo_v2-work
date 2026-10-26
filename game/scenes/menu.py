@@ -73,7 +73,7 @@ class MenuScene(Scene):
             Button("menu.play", self._play),
             Button("menu.howto", lambda: self.app.scenes.push("howto")),
             Button("menu.settings", lambda: self.app.scenes.push("settings")),
-            Button("menu.quit", self.app.quit, sound="ui_back", color=PAL["magenta"]),
+            Button("menu.quit", self._ask_quit, sound="ui_back", color=PAL["magenta"]),
         ], cx, 430, 74, app=app, width=300, row_height=58, font_size=32, on_back=self._on_escape)
 
     #Scene hooks
@@ -91,11 +91,14 @@ class MenuScene(Scene):
     def _play(self):
         self.app.scenes.switch("play")
 
+    def _ask_quit(self):
+        self.app.scenes.push("confirm_quit")
+
     def _on_escape(self):
-        # First Esc jumps to Quit; Esc on Quit quits
+        # First Esc jumps to Quit; Esc on Quit asks for confirmation
         quit_i = len(self.menu.widgets) - 1
         if self.menu.focus == quit_i:
-            self.app.quit()
+            self._ask_quit()
         else:
             self.menu.set_focus(quit_i, sound=False)
 

@@ -449,6 +449,12 @@ def test_highscore():
                 json.dump({"best_score": "lots", "best_level": 7, "games_played": -3, "best_combo": True}, f)
             hs4 = HighScore()
             assert (hs4.best_score, hs4.best_level, hs4.games_played, hs4.best_combo) == (0, 7, 0, 0)
+            # Non-finite numbers (Infinity, 1e999) must not poison the save
+            with open(save, "w", encoding="utf-8") as f:
+                f.write('{"best_score": Infinity, "best_level": 1e999, "games_played": 2}')
+            hs5 = HighScore()
+            assert (hs5.best_score, hs5.best_level, hs5.games_played) == (0, 1, 2)
+            assert hs5.submit(30, 1)
             # Atomic: a failing replace leaves the previous file untouched
             hs4.submit(50, 1)
             before = open(save, encoding="utf-8").read()

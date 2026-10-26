@@ -40,6 +40,10 @@
   "pause.settings": "Cài đặt",
   "pause.menu": "Về menu chính",
   "pause.hint": "Esc hoặc P: tiếp tục",
+  "quit.title": "THOÁT GAME?",
+  "quit.no": "Ở lại",
+  "quit.yes": "Thoát",
+  "quit.hint": "Esc: ở lại",
 
   "gameover.title": "KẾT THÚC",
   "gameover.score": "ĐIỂM",

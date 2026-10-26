@@ -23,8 +23,10 @@ SCENE_MODULES = {
     "settings": (".scenes.settings_scene", ("SettingsScene",)),
     "gameover": (".scenes.gameover", ("GameOverScene", "GameoverScene")),
     "howto": (".scenes.howto", ("HowToScene", "HowtoScene")),
+    "confirm_quit": (".scenes.confirm_quit", ("ConfirmQuitScene",)),
 }
-OVERLAY_PLACEHOLDERS = {"pause", "settings"}
+OVERLAY_PLACEHOLDERS = {"pause", "settings", "confirm_quit"}
+SETTINGS_SAVE_DELAY = 0.4     # seconds to wait after the last change before writing settings.json
 
 MOUSE_EVENTS = (pg.MOUSEMOTION, pg.MOUSEBUTTONDOWN, pg.MOUSEBUTTONUP)
 FPS_REFRESH = 0.25            # seconds between FPS counter text refreshes
@@ -209,6 +211,7 @@ class App:
         self._fps_shown = 0
         self._fps_timer = 0.0
         self._closed = False
+        self._save_due = None       # real_time at which pending settings get written
 
         self._register_scenes()
         start = args.start_scene
@@ -236,7 +239,13 @@ class App:
         self.display.apply(self.settings)
         self.audio.set_volumes(self.settings.music_volume, self.settings.sfx_volume)
         i18n.set_language(self.settings.language)
-        self.settings.save()
+        # Sliders and held keys call this many times a second: write once things settle
+        self._save_due = self.real_time + SETTINGS_SAVE_DELAY
+
+    def flush_settings(self) -> None:
+        if self._save_due is not None:
+            self._save_due = None
+            self.settings.save()
 
     def toggle_fullscreen(self) -> None:
         self.settings.fullscreen = not self.settings.fullscreen
@@ -250,9 +259,13 @@ class App:
     def _remap_mouse(self, event):
         """Window coords -> logical coords; returns None to drop the event."""
         d = dict(event.dict)
-        if event.type == pg.MOUSEBUTTONUP:
-            # Never drop a release: drags (sliders) must always end
+        dragging = event.type == pg.MOUSEMOTION and bool(event.buttons[0])
+        if event.type == pg.MOUSEBUTTONUP or dragging:
+            # Never drop a release, and keep drags alive outside the canvas (sliders must reach 0%/100%)
             d["pos"] = self.display.to_logical_clamped(event.pos)
+            if dragging and "rel" in d:
+                s = self.display.scale or 1.0
+                d["rel"] = (round(d["rel"][0] / s), round(d["rel"][1] / s))
         else:
             pos = self.display.to_logical(event.pos)
             if pos is None:
@@ -312,6 +325,8 @@ class App:
         if steps >= config.MAX_STEPS_PER_FRAME:
             self._accum = min(self._accum, dt)  # drop backlog (avoid spiral of death)
         self.scenes.apply_pending()
+        if self._save_due is not None and self.real_time >= self._save_due:
+            self.flush_settings()
 
         #Drawing
         surf = self.display.surface
@@ -371,4 +386,8 @@ class App:
         if self._closed:
             return
         self._closed = True
+        try:
+            self.flush_settings()
+        except Exception as e:                  # never let a failed save block shutdown
+            log.warning("Could not save settings on exit: %s", e)
         pg.quit()

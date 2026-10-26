@@ -91,7 +91,8 @@ class Display:
         if tuple(settings.resolution) != self.resolution:
             log.info("Resolution %s does not fit, using %s", settings.resolution, self.resolution)
             settings.resolution = self.resolution
-        mode = (bool(settings.fullscreen), self.resolution)
+        # A fullscreen window ignores the windowed size, so resizing must not rebuild it
+        mode = (True, None) if settings.fullscreen else (False, self.resolution)
         if mode == self._mode and pg.display.get_surface() is not None:
             return
 
@@ -107,7 +108,7 @@ class Display:
             settings.fullscreen = False
             self.window = pg.display.set_mode(self.resolution)
         self.fullscreen = bool(settings.fullscreen)
-        self._mode = (self.fullscreen, self.resolution)
+        self._mode = (True, None) if self.fullscreen else (False, self.resolution)
 
         if not self._converted:
             self.surface = self.surface.convert()

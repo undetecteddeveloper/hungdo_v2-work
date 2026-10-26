@@ -168,6 +168,7 @@ class Spawner:
 
         vx = self._vx(params) if allow_diag and self.rng.random() < params.diagonal_chance else 0.0
         item = None
+        crowded = True
         for attempt in range(6):
             if x_hint is not None and attempt == 0:
                 x = min(max(x_hint, a_lo), a_hi)
@@ -184,7 +185,10 @@ class Spawner:
                 x_land = x
             item = (cand, x_land)
             if not self._near_bomb(t_land, x_land):
+                crowded = False
                 break
+        if crowded:
+            return None                      # every try landed beside a bomb: skip, caller retries later
         cand, x_land = item
         self._pending.append([t_land, x_land, kind])
         return cand

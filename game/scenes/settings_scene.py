@@ -68,6 +68,9 @@ class SettingsScene(Scene):
     def on_enter(self, **kwargs):
         self.menu.reset(0)
 
+    def on_exit(self):
+        self.app.flush_settings()           # changes are saved lazily while sliders move
+
     def on_resume(self):
         self.menu.dragging = None
 

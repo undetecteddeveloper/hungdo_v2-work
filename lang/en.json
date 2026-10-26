@@ -40,6 +40,10 @@
   "pause.settings": "Settings",
   "pause.menu": "Main menu",
   "pause.hint": "Esc or P: resume",
+  "quit.title": "QUIT GAME?",
+  "quit.no": "Stay",
+  "quit.yes": "Quit",
+  "quit.hint": "Esc: stay",
 
   "gameover.title": "GAME OVER",
   "gameover.score": "SCORE",
