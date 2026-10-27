@@ -16,6 +16,8 @@ Converted with `tools/extract_images.py whiten` (trimmed, re-centred, rgb forced
 | `icons/magnet.png` | original, procedural (`tools/extract_images.py glyph magnet`) | Hứng Đồ v2 project | — | same as project |
 | `icons/bomb.png` | original, procedural (`tools/extract_images.py glyph bomb`) | Hứng Đồ v2 project | — | same as project |
 | `icons/star.png` | original, procedural (`tools/extract_images.py glyph star`) | Hứng Đồ v2 project | — | same as project |
+| `logos/python.png` | Python logo (two snakes, no text), rendered from the SVG by `tools/make_logos.py` | Python Software Foundation | https://commons.wikimedia.org/wiki/File:Python-logo-notext.svg | Python is a trademark of the PSF; shown only to say the game is written in Python |
+| `logos/claude.png` | Claude symbol, rendered from the SVG by `tools/make_logos.py` (fill set to #D97757) | Anthropic | https://commons.wikimedia.org/wiki/File:Claude_AI_symbol.svg | Claude is a trademark of Anthropic; shown only to say the game was made with Claude Code |
 | `icon.png`, `icon.ico` | original, procedural (`tools/make_icon.py`) | Hứng Đồ v2 project | — | same as project |
 
 CC0 needs no attribution; Kenney is credited anyway as thanks.
@@ -54,6 +56,7 @@ the OpenGameArt pages list "CC0").
 | `sound/ui_back.wav` | `back_004.ogg` | Interface Sounds | Kenney (kenney.nl) | https://kenney.nl/assets/interface-sounds | CC0 1.0 |
 | `sound/level_up.wav` | `jingles_NES12.ogg` | Music Jingles (8-Bit) | Kenney (kenney.nl) | https://kenney.nl/assets/music-jingles | CC0 1.0 |
 | `sound/game_over.wav` | `jingles_NES00.ogg` | Music Jingles (8-Bit) | Kenney (kenney.nl) | https://kenney.nl/assets/music-jingles | CC0 1.0 |
+| `sound/boss_shot.wav`, `boss_burst.wav`, `boss_sweep.wav` | original, procedural (`tools/synth_sfx.py boss_shot boss_burst boss_sweep`) | — | Hứng Đồ v2 project | — | same as project |
 | `sound/new_record.wav` | original, procedural (`tools/synth_sfx.py new_record`) | — | Hứng Đồ v2 project | — | same as project |
 | `sound/music_game.ogg` | `synthwavehouse.ogg`, unmodified | Synthwave House Loop | Fupi | https://opengameart.org/content/synthwave-house-loop | CC0 1.0 |
 | `sound/music_menu.wav` | `menu_chill.wav`, unmodified | Menu Chill Music | etrock | https://opengameart.org/content/menu-chill-music | CC0 1.0 |

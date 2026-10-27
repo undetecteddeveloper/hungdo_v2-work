@@ -710,6 +710,10 @@ class BossController:
             self._check_phase()
         return dealt
 
+    def ball_lost(self) -> None:
+        """A helper ball fell past the paddle: the next one is dropped no sooner than BOSS_BALL_RESPAWN from now."""
+        self._ball_t = max(self._ball_t, config.BOSS_BALL_RESPAWN)
+
     def sweep_hits(self, rect: pg.Rect) -> bool:
         """True if a firing sweep touches `rect`; that sweep is then consumed (hurts once)."""
         for sw in self.sweeps:

@@ -17,6 +17,7 @@ log = logging.getLogger(config.LOGGER_NAME)
 
 # Scene name -> (module, preferred class names). Missing modules become placeholders.
 SCENE_MODULES = {
+    "splash": (".scenes.splash", ("SplashScene",)),
     "menu": (".scenes.menu", ("MenuScene",)),
     "play": (".scenes.play", ("PlayScene",)),
     "pause": (".scenes.pause", ("PauseScene",)),
@@ -74,7 +75,8 @@ def parse_args(argv) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="hungdo_v2", add_help=True)
     p.add_argument("--autoplay", action="store_true", help="bot plays; menu auto-starts a game")
     p.add_argument("--smoke-seconds", type=float, default=None, help="quit with code 0 after N wall seconds")
-    p.add_argument("--start-scene", default="menu", help="initial scene name")
+    p.add_argument("--start-scene", default=None,
+                   help="initial scene name (default: splash, or menu with --autoplay / --start-boss)")
     p.add_argument("--data-dir", default=None, help="override user data directory")
     p.add_argument("--start-boss", type=int, default=0, metavar="N",
                    help="practice: every round starts at boss N (level 10*N); high scores are not saved")
@@ -220,6 +222,8 @@ class App:
 
         self._register_scenes()
         start = args.start_scene
+        if start is None:
+            start = "menu" if self.autoplay or self.start_boss else "splash"
         if not self.scenes.has(start):
             log.warning("Unknown --start-scene '%s', using menu", start)
             start = "menu"

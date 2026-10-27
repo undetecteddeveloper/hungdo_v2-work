@@ -97,6 +97,7 @@ SFX_NAMES = [
     "ui_move", "ui_select", "ui_back", "game_over", "new_record",
     # boss fights (docs/ARCHITECTURE.md "Boss fights")
     "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
+    "boss_shot", "boss_burst", "boss_sweep",        # boss attacks: single shots / many-shot volleys / sweep beam
 ]
 # Shipped as .wav (no Vorbis encoder was available); AudioManager also tries .ogg with the same stem
 SOUND_FILES = {name: f"assets/sound/{name}.wav" for name in SFX_NAMES}
@@ -222,7 +223,8 @@ BOSS_BALL_MAX_ANGLE = 60.0          # degrees from vertical for a hit on the pad
 BOSS_BALL_MIN_VY = 0.30             # |vy| / speed never drops below this (no endless sideways rally)
 BOSS_MAX_BALLS = 2                  # balls alive at once; the boss controller stops dropping more
 BOSS_BALL_INTERVAL = 5.0            # s between helper-ball drops (the ball is the only source of energy)
-BOSS_HITS_PER_ENERGY = 2            # ball hits on the boss that make it drop one energy item (beam hits do not count)
+BOSS_BALL_RESPAWN = 3.0             # s: after a ball is lost the next helper ball waits at least this long (losing one costs no life)
+BOSS_HITS_PER_ENERGY = 2           # ball hits on the boss that make it drop one energy item (beam hits do not count)
 BOSS_FIRST_BALL = 3.0
 BOSS_HELPER_JITTER = 0.25           # +-fraction of the interval, random
 BOSS_HELPER_TERMINAL = 300          # px/s: falling speed cap of helper items

@@ -847,6 +847,25 @@ def test_volleys_in_sequence():
 
 
 #Helpers drop
+def test_ball_lost_delays_next_ball():
+    # Both balls were out, one is lost: the replacement must not come at once (a loss costs time, not a life)
+    c = to_fight(BossController(random.Random(3)), 1)
+    for _ in range(int(config.BOSS_FIRST_BALL / DT) + 5):               # run until the first ball timer expired
+        c.update(DT, 270, config.BOSS_MAX_BALLS)
+    c.ball_lost()
+    t_first = None
+    for i in range(int(2 * config.BOSS_BALL_INTERVAL / DT)):
+        tick = c.update(DT, 270, config.BOSS_MAX_BALLS - 1)
+        if any(d.kind == "ball" for d in tick.drops):
+            t_first = i * DT
+            break
+    assert t_first is not None and t_first >= config.BOSS_BALL_RESPAWN - 0.05, t_first
+    # A loss never speeds the schedule up: a later timer stays as it is
+    c._ball_t = config.BOSS_BALL_RESPAWN + 2.0
+    c.ball_lost()
+    assert approx(c._ball_t, config.BOSS_BALL_RESPAWN + 2.0)
+
+
 def test_drops():
     c = to_fight(BossController(random.Random(21)), 1)
     drops = []            # (t, kind, x)
@@ -1213,6 +1232,7 @@ TESTS = [
     test_planner_matches_ground_truth,
     test_volleys_in_sequence,
     test_drops,
+    test_ball_lost_delays_next_ball,
     test_on_resize,
     test_determinism,
     test_soak,

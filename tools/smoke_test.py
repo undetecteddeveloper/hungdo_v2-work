@@ -502,13 +502,15 @@ def walk_boss(d: Driver) -> None:
     wait_for(d, lambda: play.energy == energy + 1, 5 * 60, "the paddle collects the falling energy item")
     play.helpers.clear()
 
-    # Losing the ball costs a life
+    # Losing the ball costs no life, only time: the next ball is held back for BOSS_BALL_RESPAWN
     lives = play.lives
     ball = HelperBall(60, config.PLAYER_Y + 40)
     ball.state = "flying"
     ball.vel.update(0, config.BOSS_BALL_SPEED)
     play.helpers.append(ball)
-    wait_for(d, lambda: play.lives < lives, 120, "a lost ball costs a life")
+    wait_for(d, lambda: play.stats.get("balls_lost", 0) == 1, 120, "a lost ball is counted")
+    check(play.lives == lives, f"a lost ball costs no life ({lives} -> {play.lives})")
+    check(ctrl._ball_t >= config.BOSS_BALL_RESPAWN - 0.1, "the next ball waits after a loss")
     play.lives = config.START_LIVES
 
     # A shot costs a life, then a second of invulnerability

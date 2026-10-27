@@ -26,7 +26,8 @@ SOUND_DIR = os.path.join(os.path.dirname(HERE), "assets", "sound")
 SFX_NAMES = ["catch", "catch_rare", "catch_epic", "miss", "bomb", "powerup", "shield_break",
              "heart", "combo_up", "level_up", "countdown", "go", "ui_move", "ui_select",
              "ui_back", "game_over", "new_record",
-             "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning"]
+             "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
+             "boss_shot", "boss_burst", "boss_sweep"]
 
 rng = np.random.default_rng(1234)   # fixed seed -> reproducible noise
 
@@ -338,6 +339,38 @@ def sfx_warning():
         sig = lowpass(osc(880, d, "square"), 2400) * 0.7 + osc(1245, d, "tri") * 0.25 + osc(440, d) * 0.3
         return sig * env(d, attack=0.004, decay=1.0, sustain=1.0, release=0.025)
     return echo(mix((beep(), 0), (beep(), 0.29)), 0.11, 0.3, 2)
+
+
+def _pew(f0: float, f1: float, dur: float) -> np.ndarray:
+    """One enemy shot: a square blip falling f0 -> f1 with a soft click, kept below the player's bright beam zap."""
+    body = lowpass(osc(sweep(f0, f1, dur), dur, "square"), 3200) * 0.6 + osc(sweep(f0 * 0.5, f1 * 0.5, dur), dur) * 0.5
+    click = highpass(noise(0.012), 2000) * env(0.012, attack=0.0003, decay=0.004)
+    return mix((body * env(dur, attack=0.001, decay=dur * 0.4, release=0.02), 0), (click * 0.4, 0))
+
+
+def sfx_boss_shot():
+    """Boss fires a few fast shots: one short falling blip with a low body (~0.17 s)."""
+    return _pew(880, 260, 0.17)
+
+
+def sfx_boss_burst():
+    """Boss fires a wide volley: three quick falling blips stacked up in pitch over a puff of noise (~0.38 s)."""
+    puff = lowpass(noise(0.22), sweep(5200, 700, 0.22)) * env(0.22, attack=0.002, decay=0.07) * 0.35
+    return mix((_pew(1040, 300, 0.16), 0), (_pew(820, 240, 0.16) * 0.8, 0.07), (_pew(640, 190, 0.2) * 0.7, 0.14),
+               (puff, 0))
+
+
+def sfx_boss_sweep():
+    """Boss sweep beam fires: a deep saw drone sliding down with a hissing wash and a heavy thump (~0.7 s)."""
+    dur = 0.7
+    n = n_samples(dur)
+    t = np.arange(n) / SR
+    f = sweep(420, 70, dur) * (1 + 0.05 * np.sin(2 * np.pi * 22 * t))
+    body = lowpass(osc(f, dur, "saw"), 2600) * 0.7 + osc(f * 0.5, dur, "square") * 0.3
+    body = body * env(dur, attack=0.004, decay=0.5, sustain=0.15, release=0.12)
+    wash = lowpass(noise(dur), sweep(6000, 500, dur)) * env(dur, attack=0.01, decay=0.3) * 0.4
+    thump = osc(sweep(150, 45, 0.22), 0.22) * env(0.22, attack=0.001, decay=0.07)
+    return mix((body, 0), (wash, 0), (thump * 0.9, 0))
 
 
 RECIPES = {name: globals()[f"sfx_{name}"] for name in SFX_NAMES}

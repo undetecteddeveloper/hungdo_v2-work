@@ -11,6 +11,9 @@
   "ui.off": "OFF",
   "ui.back": "Back",
 
+  "splash.written_with": "Written in",
+  "splash.made_with": "Built with",
+
   "menu.title": "HỨNG ĐỒ",
   "menu.subtitle": "Catch it all — dodge the bombs!",
   "menu.play": "Play",

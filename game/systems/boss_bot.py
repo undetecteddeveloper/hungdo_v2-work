@@ -123,7 +123,7 @@ def choose(x0: float, v0: float, width: float, goal: float, shots: list, sweeps:
                 xs2 = np.concatenate((np.full(dk, x0), late))[:N_LOOK]
                 if first_hit(xs2, width, arr, sweeps, margin, n) >= n:
                     return x0
-    if commit:      # a lost ball costs a life just like a hit does: stay with the ball, delaying the hit if possible
+    if commit:      # stay with the goal, delaying the hit if possible
         return max(near, key=lambda c: first_hit(paths.setdefault(c, path(x0, v0, c, width)), width, arr, sweeps, 5.0, n))
     best, best_key = x0, None
     for margin in (0.35 * width, 0.12 * width, 5.0):           # prefer roomy spots, settle for tight ones

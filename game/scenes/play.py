@@ -34,6 +34,9 @@ FIRE_KEYS = (pg.K_SPACE,)
 PAUSE_KEYS = (pg.K_ESCAPE, pg.K_p)
 
 CALLOUT_TIME = boss_ui.CALLOUT_TIME  # boss callout ("PHASE 2", "ENRAGED") duration
+# Sound of a boss volley by attack name: a few fast shots / many shots at once (anything else: "boss_shot")
+BOSS_ATTACK_SFX = {"fan": "boss_burst", "spin": "boss_burst", "row": "boss_burst"}
+BOSS_ATTACK_VOLUME = {"boss_shot": 0.55, "boss_burst": 0.6}
 RESUME_GRACE = 1.6                  # no spawns for this long after the boss reward
 
 GO_TIME = 0.7                       # "GO!" stays on screen this long (spawning already runs)
@@ -421,6 +424,10 @@ class PlayScene(Scene):
                 self.app.audio.play("warning", 0.8)
             elif ev == "sweep_fire":
                 self.shake.add(0.4)
+                self.app.audio.play("boss_sweep", 0.7)
+            elif ev == "volley":
+                sfx = BOSS_ATTACK_SFX.get(self.boss.attack, "boss_shot")
+                self.app.audio.play(sfx, BOSS_ATTACK_VOLUME[sfx])
             elif ev in ("phase2", "phase3"):
                 n = int(ev[-1])
                 self._callout(t("boss.phase", n=n), color)
@@ -580,7 +587,18 @@ class PlayScene(Scene):
         elif ev == "boss":
             self._ball_hit_boss(ball.pos)
         elif ev == "lost":
-            self._on_miss(ball, t("boss.ball_lost"))
+            self._on_ball_lost(ball)
+
+    def _on_ball_lost(self, ball) -> None:
+        """The ball fell past the paddle. No life is lost: the next ball just takes a few seconds to come."""
+        self.stats["balls_lost"] = self.stats.get("balls_lost", 0) + 1
+        self.boss.ball_lost()
+        self.app.audio.play("miss", 0.4)
+        x = min(max(ball.pos.x, 20), config.LOGICAL_W - 20)
+        if self.particles is not None:
+            self.particles.burst((x, config.LOGICAL_H - 6), PAL["red"], count=14, speed=(80, 280),
+                                 life=(0.25, 0.55), angle=-math.pi / 2, spread=math.pi * 0.8)
+        self._popup(t("boss.ball_lost"), (x, config.LOGICAL_H - 70), PAL["red"], 28)
 
     def _boss_hit(self, pos) -> None:
         """A boss shot or sweep touched the paddle: like a bomb, then a second of invulnerability."""
@@ -844,7 +862,7 @@ class PlayScene(Scene):
             return config.LOGICAL_W / 2, None, None, False, None
         flying = [h for h in self.helpers if isinstance(h, HelperBall) and h.alive and h.state == "flying"]
         if flying:
-            # A ball coming down is worth a life: be under it. Hit it so that it comes back near the boss
+            # A ball coming down is the only source of energy (losing it costs no life): be under it. Hit it so that it comes back near the boss
             # to where it was caught (a ball sent across the field is lost), preferring returns that touch the boss.
             tm, lx, _ = min((self._ball_flight(h.pos.x, h.pos.y, h.vel.x, h.vel.y, h.radius, ctrl.hit_rect)
                              for h in flying), key=lambda f: f[0])
