@@ -1,6 +1,6 @@
 """Boss UI tests (plain asserts, no pytest): i18n keys, HUD with boss, banners, reward scene, how-to layout.
 
-Run from hungdo_v2/:   python -m tests.test_boss_ui [--shots]
+Run from the repo root:   python -m tests.test_boss_ui [--shots]
 --shots also saves screenshots of the boss HUD / reward scene / banners into tools/_out/ (git-ignored).
 """
 import json

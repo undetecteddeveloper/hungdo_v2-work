@@ -4,11 +4,11 @@ This document is the single source of truth for interfaces. Every module must fo
 If you need something not listed, add it **inside a file you own** and note it in your report;
 never change another module's public signature.
 
-v1 (`../hungdo.py`, `../myfirstgame/hungdo.exe`) stays untouched.
+v1 lives in a separate repo (`E:\pygame projects\HungDo_project`) and stays untouched.
 
 ## Run / tooling
-- Python: `.venv/Scripts/python.exe` at repo root (`E:\pygame projects\HungDo_project\.venv`). Library: **pygame-ce 2.5.x** (`import pygame as pg`), numpy available.
-- Run game: `.venv/Scripts/python.exe hungdo_v2/main.py`
+- Python: `.venv/Scripts/python.exe` at repo root (`E:\pygame projects\hungdo_v2-work\.venv`). Library: **pygame-ce 2.5.x** (`import pygame as pg`), numpy available.
+- Run game: `.venv/Scripts/python.exe main.py`
 - Headless: set env `SDL_VIDEODRIVER=dummy`, `SDL_AUDIODRIVER=dummy`.
 - Code comments in English, concise, matching v1 style. No type-checker required, but use type hints on public functions.
 - Never `print` in hot loops. Use `logging` (logger name `hungdo`).
@@ -20,7 +20,7 @@ No photo-realistic or pixel-art assets. Everything readable at 360x560 window.
 
 ## Directory layout
 ```
-hungdo_v2/
+./                          # repo root
   main.py                    # entry: from game.app import App; App().run()
   game/
     __init__.py
@@ -90,7 +90,7 @@ ICON_FILES = {"magnet","slow","wide","shield","heart","bomb","star"}: rel_path  
 ```
 
 ### paths.py
-- `resource_path(rel: str) -> str` — base = `sys._MEIPASS` when frozen, else the `hungdo_v2/` directory (dir of `main.py`), **not** cwd.
+- `resource_path(rel: str) -> str` — base = `sys._MEIPASS` when frozen, else the repo root directory (dir of `main.py`), **not** cwd.
 - `user_data_dir() -> str` — `%APPDATA%/HungDo` on Windows (fallback `~/.hungdo`), created on demand.
 
 ### settings.py

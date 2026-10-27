@@ -4,7 +4,7 @@ import sys
 
 from . import config
 
-# hungdo_v2/ (the directory that holds main.py), independent of the cwd
+# the repo root (the directory that holds main.py), independent of the cwd
 _SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 

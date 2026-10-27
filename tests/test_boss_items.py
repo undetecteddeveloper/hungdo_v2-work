@@ -1,7 +1,7 @@
 """Boss item tests (plain asserts, no pytest).
 
-Run from hungdo_v2/:   python -m tests.test_boss_items
-or from anywhere:      python hungdo_v2/tests/test_boss_items.py
+Run from the repo root:   python -m tests.test_boss_items
+or from anywhere:      python tests/test_boss_items.py
 """
 import contextlib
 import functools

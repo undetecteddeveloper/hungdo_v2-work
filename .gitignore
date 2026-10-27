@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# PyInstaller output
+build/
+dist/
+*.exe
+
+# Local tooling scratch
+.asset_cache/
+
+# Tool outputs (screenshots, profiles)
+tools/_out/

@@ -5,7 +5,7 @@ Drives the real App through every scene with posted input events, forces gamepla
 simulated seconds and saves screenshots to tools/_out/smoke_*.png.
 All files are written to a temporary user data dir; the real profile is never touched.
 
-Run: .venv/Scripts/python.exe hungdo_v2/tools/smoke_test.py [--autoplay-seconds N] [--keep-data]
+Run: .venv/Scripts/python.exe tools/smoke_test.py [--autoplay-seconds N] [--keep-data]
 """
 import argparse
 import json

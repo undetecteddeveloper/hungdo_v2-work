@@ -5,11 +5,11 @@ envelopes, noise and echo. A simple 16-bar synth loop can be rendered for
 missing music. Output is 16-bit mono WAV, peak-normalised to about -1 dBFS.
 
 Usage (from repo root):
-    python hungdo_v2/tools/synth_sfx.py                 # only names with no file yet
-    python hungdo_v2/tools/synth_sfx.py catch go        # these names (overwrite)
-    python hungdo_v2/tools/synth_sfx.py --all           # every sfx (overwrite)
-    python hungdo_v2/tools/synth_sfx.py --music menu    # music_menu.wav (also: game)
-    python hungdo_v2/tools/synth_sfx.py --out some/dir ...
+    python tools/synth_sfx.py                 # only names with no file yet
+    python tools/synth_sfx.py catch go        # these names (overwrite)
+    python tools/synth_sfx.py --all           # every sfx (overwrite)
+    python tools/synth_sfx.py --music menu    # music_menu.wav (also: game)
+    python tools/synth_sfx.py --out some/dir ...
 """
 import argparse
 import os

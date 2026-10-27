@@ -1,7 +1,7 @@
 """Gameplay tests (plain asserts, no pytest).
 
-Run from hungdo_v2/:   python -m tests.test_gameplay
-or from anywhere:      python hungdo_v2/tests/test_gameplay.py
+Run from the repo root:   python -m tests.test_gameplay
+or from anywhere:      python tests/test_gameplay.py
 """
 import dataclasses
 import json

@@ -1,6 +1,6 @@
 """Boss logic tests (plain asserts, no pytest).
 
-Run from hungdo_v2/:   python -m tests.test_boss
+Run from the repo root:   python -m tests.test_boss
 """
 import math
 import os

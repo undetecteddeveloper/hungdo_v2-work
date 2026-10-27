@@ -14,7 +14,7 @@ import sys
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # hungdo_v2/
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
 PNG_PATH = os.path.join(ROOT, "assets", "icon.png")
 ICO_PATH = os.path.join(ROOT, "assets", "icon.ico")
 ICO_SIZES = [16, 32, 48, 64, 128, 256]

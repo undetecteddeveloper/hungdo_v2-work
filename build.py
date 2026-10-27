@@ -1,7 +1,7 @@
 """Build Hứng Đồ v2 into a single-file exe with PyInstaller.
 
 Usage: python build.py [--no-test]
-Output: hungdo_v2/dist/HungDo_v2.exe (dist/ and build/ are git-ignored).
+Output: dist/HungDo_v2.exe (dist/ and build/ are git-ignored).
 Runs the exe once with --autoplay --smoke-seconds 5 unless --no-test is given.
 """
 import os

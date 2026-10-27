@@ -3,7 +3,7 @@
 Boss / Sweep / Beam come from other modules, so they are faked with SimpleNamespace carrying exactly the
 fields listed in docs/ARCHITECTURE.md "Boss fights".
 
-Run from hungdo_v2/:   python -m tests.test_boss_draw
+Run from the repo root:   python -m tests.test_boss_draw
 """
 import math
 import os
