@@ -154,7 +154,7 @@ class Boss:
         self.colors = d["colors"]
         self.pos = pg.Vector2(config.LOGICAL_W / 2, config.BOSS_Y)
         self.half_w, self.half_h = d["half"]
-        self.max_hp = config.BOSS_BASE_HP * (1.0 + config.BOSS_HP_GROWTH * self.cycle)
+        self.max_hp = config.boss_max_hp(number)
         self.hp = self.max_hp
         self.phase = 1
         self.hit_flash = 0.0

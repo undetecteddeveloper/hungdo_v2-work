@@ -84,14 +84,21 @@ def _circle_hits_rect(x: float, y: float, r: float, rect: pg.Rect) -> bool:
     return dx * dx + dy * dy <= r * r
 
 
-def launch_velocity(ball_x: float, paddle: pg.Rect) -> tuple:
+def tier_speed(tier: int) -> float:
+    """Flying speed (px/s) of a ball of tier 1..len(BALL_TIER_SPEEDS)."""
+    speeds = config.BALL_TIER_SPEEDS
+    return speeds[max(1, min(len(speeds), int(tier))) - 1]
+
+
+def launch_velocity(ball_x: float, paddle: pg.Rect, speed: float = None) -> tuple:
     """Velocity of a ball leaving the paddle at x = ball_x: angle from vertical grows with the offset
-    from the paddle centre (full BOSS_BALL_MAX_ANGLE at the edge). Always upward, speed BOSS_BALL_SPEED."""
+    from the paddle centre (full BOSS_BALL_MAX_ANGLE at the edge). Always upward, `speed` defaults to the tier-1 speed."""
     half = paddle.w / 2
     offset = (ball_x - paddle.centerx) / half if half > 0 else 0.0
     offset = max(-1.0, min(1.0, offset))
     a = offset * math.radians(config.BOSS_BALL_MAX_ANGLE)
-    speed = config.BOSS_BALL_SPEED
+    if speed is None:
+        speed = tier_speed(1)
     return speed * math.sin(a), -speed * math.cos(a)
 
 
@@ -101,9 +108,10 @@ def ball_catch_rect(paddle: pg.Rect) -> pg.Rect:
     return pg.Rect(paddle.left - r, paddle.top - r, paddle.w + 2 * r, paddle.h + r)
 
 
-def _keep_speed(vx: float, vy: float) -> tuple:
+def _keep_speed(vx: float, vy: float, speed: float = None) -> tuple:
     """After a reflection: |vy| >= BOSS_BALL_MIN_VY * speed (no endless sideways rally), then |v| = speed."""
-    speed = config.BOSS_BALL_SPEED
+    if speed is None:
+        speed = tier_speed(1)
     min_vy = config.BOSS_BALL_MIN_VY * speed
     if abs(vy) < min_vy:
         vy = math.copysign(min_vy, vy if vy else -1.0)
@@ -378,6 +386,26 @@ class HelperBall(_Faller):
         super().__init__(x, y)
         self.state = "falling"                  # "falling" (not caught yet) | "flying"
         self.hit_cd = 0.0                       # s left in which a new boss contact is ignored
+        self.tier = 1                           # 1..len(config.BALL_TIER_SPEEDS): speed and damage step (every ball has its own)
+        self.bonus = False                      # True for the multi-ball skill's balls: outside BOSS_MAX_BALLS, a loss costs nothing
+
+    @classmethod
+    def launched(cls, x: float, y: float, angle_deg: float, bonus: bool = True) -> "HelperBall":
+        """A tier-1 ball already flying from (x, y), `angle_deg` degrees off vertical (negative = to the left)."""
+        ball = cls(x, y)
+        ball.state = "flying"
+        ball.bonus = bonus
+        a = math.radians(angle_deg)
+        ball.vel.update(ball.speed * math.sin(a), -ball.speed * math.cos(a))
+        return ball
+
+    @property
+    def speed(self) -> float:
+        return tier_speed(self.tier)
+
+    @property
+    def damage_mult(self) -> float:
+        return config.BALL_TIER_DAMAGE[max(1, min(len(config.BALL_TIER_DAMAGE), self.tier)) - 1]
 
     @property
     def rect(self) -> pg.Rect:
@@ -417,7 +445,7 @@ class HelperBall(_Faller):
     def _catch(self, paddle: pg.Rect) -> None:
         self.state = "flying"
         self.magnetized = False
-        self.vel.update(*launch_velocity(self.pos.x, paddle))
+        self.vel.update(*launch_velocity(self.pos.x, paddle, self.speed))
         self.pos.y = paddle.top - self.radius
         self.hit_cd = 0.0
         self.trail.clear()
@@ -449,12 +477,12 @@ class HelperBall(_Faller):
                 vy, bounced = -vy, True
                 events.append("ceiling")
         if bounced:
-            vx, vy = _keep_speed(vx, vy)
+            vx, vy = _keep_speed(vx, vy, self.speed)
 
         # Paddle: only a falling ball whose centre is above the paddle's middle line bounces
         self.pos.update(x, y)
         if paddle is not None and vy > 0 and y <= paddle.centery and paddle.colliderect(self.rect):
-            vx, vy = launch_velocity(x, paddle)
+            vx, vy = launch_velocity(x, paddle, self.speed)
             y = paddle.top - r
             events.append("paddle")
 
@@ -473,7 +501,7 @@ class HelperBall(_Faller):
                 x, vx = boss_rect.left - r, -abs(vx)
             else:
                 x, vx = boss_rect.right + r, abs(vx)
-            vx, vy = _keep_speed(vx, vy)
+            vx, vy = _keep_speed(vx, vy, self.speed)
             self.hit_cd = BALL_HIT_CD
             events.append("boss")
 

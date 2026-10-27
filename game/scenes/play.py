@@ -534,14 +534,14 @@ class PlayScene(Scene):
         self.shake.add(0.2)
         self.player.bump(0.8)
         if beam.hit:
-            self._damage_boss(config.BOSS_BEAM_DAMAGE, (x, beam.y_to), True)
+            self._damage_boss(config.beam_damage(self.boss.boss.number), (x, beam.y_to), True)
         return True
 
     def _damage_boss(self, amount: float, pos, heavy: bool) -> float:
         dealt = self.boss.damage(amount * self._power_mult(), "beam" if heavy else "ball")
         if dealt <= 0:
             return 0.0
-        pts = int(round(dealt * config.BOSS_POINTS_PER_HP))
+        pts = config.boss_points(dealt, self.boss.boss.number)
         self.score += pts
         self.stats["boss_damage"] = self.stats.get("boss_damage", 0.0) + dealt
         self.app.audio.play("boss_hit", 0.6 if heavy else 0.5)
@@ -552,9 +552,10 @@ class PlayScene(Scene):
         self._popup(f"+{pts}", (pos[0], b.pos.y + b.half_h + 24), PAL["white"], 30 if heavy else 24)
         return dealt
 
-    def _ball_hit_boss(self, pos) -> None:
+    def _ball_hit_boss(self, ball) -> None:
         """A ball hit counts towards the next energy item, which falls from the boss (beam hits do not count)."""
-        if self._damage_boss(config.BOSS_BALL_DAMAGE, pos, False) <= 0:
+        damage = config.ball_base_damage(self.boss.boss.number) * ball.damage_mult
+        if self._damage_boss(damage, ball.pos, False) <= 0:
             return
         self.ball_hits += 1
         if self.ball_hits % config.BOSS_HITS_PER_ENERGY == 0 and self.boss.fighting:
@@ -587,7 +588,7 @@ class PlayScene(Scene):
             self.app.audio.play("catch", 0.55)
             self.player.bump(0.3)
         elif ev == "boss":
-            self._ball_hit_boss(ball.pos)
+            self._ball_hit_boss(ball)
         elif ev == "lost":
             self._on_ball_lost(ball)
 
