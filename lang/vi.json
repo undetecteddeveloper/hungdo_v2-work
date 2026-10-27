@@ -84,7 +84,7 @@
   "howto.fullscreen": "Toàn màn hình",
   "howto.fire": "Bắn tia (khi đủ năng lượng)",
   "howto.tip": "Để rơi vật phẩm tốt sẽ mất 1 mạng. Hứng liên tục để tăng combo!",
-  "howto.boss_tip": "Cứ 10 cấp có một boss: hứng bóng nảy để đánh. Cứ 2 lần bóng trúng boss sẽ rơi 1 năng lượng; gom 2 rồi nhấn Space để bắn tia!",
+  "howto.boss_tip": "Cứ 10 cấp có một boss: hứng bóng nảy để đánh. 2 lần bóng trúng sẽ rơi 1 năng lượng; gom 2 rồi nhấn Space để bắn tia! Hứng vật kỹ năng: BA BI hoặc PHẢN ĐẠN.",
 
   "hud.level": "CẤP {n}",
   "hud.best": "KỶ LỤC {score}",
@@ -111,6 +111,8 @@
   "boss.beam_ready": "SPACE: BẮN TIA!",
   "boss.energy": "NĂNG LƯỢNG",
   "boss.ball_lost": "MẤT BÓNG!",
+  "boss.skill.multiball": "BA BI!",
+  "boss.skill.reflect": "PHẢN ĐẠN!",
   "boss.reward.title": "CHỌN NÂNG CẤP",
   "boss.reward.sub": "Có hiệu lực đến hết ván",
   "boss.reward.lives": "Mạng đã được hồi đầy",

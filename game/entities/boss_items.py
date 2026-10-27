@@ -139,6 +139,7 @@ class Projectile:
         self.shape = shape
         self.color = _resolve_color(color)
         self.alive = True
+        self.reflected = False              # True once the reflect shield bounced it back: it only hurts the boss now
         self.age = 0.0
         self._phase = (x * 0.013 + y * 0.007) % math.tau     # de-syncs the pulse of neighbours
 
@@ -374,6 +375,99 @@ class EnergyItem(_Faller):
                 off = 0.0 if j == 0 else (_hash01(frame * 13 + i * 17 + j) - 0.5) * r * 0.7
                 pts.append((cx + ux * d + px * off, cy + uy * d + py * off))
             pg.draw.lines(surf, mix_color(YELLOW, WHITE, 0.6), False, pts, 1)
+
+
+class SkillItem(_Faller):
+    """Skill pick-up dropped by the boss (`skill` = "multiball" | "reflect"); used the moment the paddle catches it.
+    Drawn in code like EnergyItem (no image asset): a round capsule with a fan of three dots (cyan) or a shield
+    with a U-turn arrow (green), so it never looks like energy (yellow hexagon) or a hostile shot."""
+
+    kind = "skill"
+    radius = config.SKILL_ITEM_RADIUS
+    COLORS = {"multiball": CYAN, "reflect": PAL["green"]}
+    # Shield outline in units of the radius (y down), and the U-turn arrow: legs at x = +-ARROW_X, bend at ARROW_BEND
+    SHIELD_POINTS = ((-0.66, -0.58), (0.0, -0.86), (0.66, -0.58), (0.58, 0.14), (0.0, 0.88), (-0.58, 0.14))
+    ARROW_X, ARROW_TOP, ARROW_BEND = 0.26, -0.4, 0.12
+
+    def __init__(self, skill: str, x: float, y: float = None):
+        if skill not in self.COLORS:
+            log.warning("boss_items: unknown skill %r, using multiball", skill)
+            skill = "multiball"
+        super().__init__(x, y)
+        self.skill = skill
+
+    @property
+    def color(self) -> tuple:
+        return self.COLORS[self.skill]
+
+    @property
+    def rect(self) -> pg.Rect:
+        r = self.radius * ENERGY_HIT_SCALE
+        return pg.Rect(round(self.pos.x - r), round(self.pos.y - r), round(r * 2), round(r * 2))
+
+    def update(self, dt: float, time_scale: float = 1.0, magnet_x=None) -> None:
+        if not self.alive or dt <= 0:
+            return
+        n, h = _split(dt, time_scale)
+        for _ in range(n):
+            self._fall_substep(h * time_scale, magnet_x)
+            if self._left_bottom():
+                break
+
+    def draw(self, surf, t: float, assets=None) -> None:
+        if not self.alive:
+            return
+        cx, cy, r = self.pos.x, self.pos.y, self.radius
+        if cy < -r * 3:
+            return
+        color = self.color
+        trail = list(self.trail)[-FALL_TRAIL_LEN:]
+        n = len(trail)
+        for i, (tx, ty) in enumerate(trail):
+            k = (i + 1) / (n + 1)
+            add_dot(surf, (tx, ty), r * (0.2 + 0.4 * k), scale_color(color, 0.32 * k))
+        if self.magnetized:
+            glow_circle_at(surf, (cx, cy), int(r * 1.6), PAL["purple"], 0.5)
+        pulse = 0.5 + 0.5 * math.sin(t * 7 + self.age * 2)
+        glow_circle_at(surf, (cx, cy), _glow_r(r * 1.25), color, 0.8 + 0.2 * round(pulse * 2))
+        center = (int(cx), int(cy))
+        pg.draw.circle(surf, scale_color(color, 0.16), center, int(r * 1.05))
+        pg.draw.aacircle(surf, mix_color(color, WHITE, 0.2), center, int(r * 1.05), 2)
+        spin = self.age * 1.6                                       # six small beads orbit the capsule
+        for i in range(6):
+            a = spin + i * math.tau / 6
+            add_dot(surf, (cx + math.cos(a) * r * 1.42, cy + math.sin(a) * r * 1.42), max(2, int(r * 0.13)),
+                    scale_color(color, 0.8))
+        if self.skill == "multiball":
+            self._draw_fan(surf, cx, cy, r, color)
+        else:
+            self._draw_shield(surf, cx, cy, r, color)
+
+    @staticmethod
+    def _draw_fan(surf, cx, cy, r, color) -> None:
+        """Three bright dots spreading out of one point: the three balls."""
+        base = (cx, cy + r * 0.52)
+        for deg in (-38, 0, 38):
+            a = math.radians(deg)
+            tip = (base[0] + math.sin(a) * r * 1.12, base[1] - math.cos(a) * r * 1.12)
+            pg.draw.aaline(surf, scale_color(color, 0.7), base, tip)
+            pg.draw.circle(surf, WHITE, (int(tip[0]), int(tip[1])), max(2, int(r * 0.24)))
+        pg.draw.circle(surf, mix_color(color, WHITE, 0.5), (int(base[0]), int(base[1])), max(2, int(r * 0.17)))
+
+    def _draw_shield(self, surf, cx, cy, r, color) -> None:
+        """Shield outline with a U-turn arrow inside: shots that hit it come back."""
+        s = r * 0.84
+        pts = [(cx + px * s, cy + py * s) for px, py in self.SHIELD_POINTS]
+        pg.draw.polygon(surf, scale_color(color, 0.32), pts)
+        outline(surf, mix_color(color, WHITE, 0.3), pts, 2)
+        ax, top, bend = self.ARROW_X * s, self.ARROW_TOP * s, self.ARROW_BEND * s
+        path = [(cx - ax, cy + top)]
+        for i in range(9):                                          # half circle under the two legs
+            a = math.pi * i / 8
+            path.append((cx - math.cos(a) * ax, cy + bend + math.sin(a) * ax))
+        path.append((cx + ax, cy + top))
+        pg.draw.lines(surf, WHITE, False, path, 2)
+        pg.draw.polygon(surf, WHITE, [(cx + ax, cy + top - 3), (cx + ax - 4, cy + top + 3), (cx + ax + 4, cy + top + 3)])
 
 
 class HelperBall(_Faller):

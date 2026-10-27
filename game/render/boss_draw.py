@@ -638,6 +638,32 @@ def draw_beam(surf: pg.Surface, beam, t: float) -> None:
                          (x + math.cos(th) * r1, y_to + math.sin(th) * r1), 2)
 
 
+#Reflect skill shield
+def draw_reflect_shield(surf: pg.Surface, cx: float, cy: float, w: float, h: float, frac: float, blink: bool,
+                        t: float) -> None:
+    """Green mirror dome around the paddle (centre cx, cy; size w x h) and a timer bar above it that drains with
+    `frac` (1 -> 0). `blink` (little time left) makes the whole thing flash. Only cached glows and plain primitives."""
+    if blink and int(t * 12) % 2:
+        return
+    green = PAL["green"]
+    pulse = 0.5 + 0.5 * math.sin(t * 6)
+    ring = pg.Rect(0, 0, (int(w) + 52) // 8 * 8, (int(h) + 52) // 2 * 2)
+    ring.center = (int(cx), int(cy) - 4)
+    glow_rect_at(surf, ring.center, ring.w, ring.h, green, radius=ring.h // 2, thickness=2)
+    pg.draw.ellipse(surf, mix_color(green, WHITE, 0.2 + 0.35 * pulse), ring, 2)
+    pg.draw.arc(surf, WHITE, ring.inflate(-8, -8), math.radians(20), math.radians(160), 3)     # the mirror's bright crown
+    # Timer bar, centred above the dome
+    bw = max(48, min(120, ring.w // 2))
+    bar = pg.Rect(0, 0, bw, 6)
+    bar.midbottom = (ring.centerx, ring.top - 6)
+    pg.draw.rect(surf, (10, 40, 28), bar, border_radius=3)
+    fill = bar.copy()
+    fill.w = int(round(bw * _clamp01(frac)))
+    if fill.w > 0:
+        pg.draw.rect(surf, mix_color(green, WHITE, 0.15), fill, border_radius=3)
+    pg.draw.rect(surf, scale_color(green, 0.8), bar, 1, border_radius=3)
+
+
 #Particle effects
 def boss_hit_fx(particles, pos, color, heavy: bool = False) -> None:
     """Sparks where the boss was hit. Beam hit = heavy, ball hit = light."""

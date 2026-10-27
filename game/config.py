@@ -98,6 +98,7 @@ SFX_NAMES = [
     # boss fights (docs/ARCHITECTURE.md "Boss fights")
     "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
     "boss_shot", "boss_sweep",                      # boss attacks: one blip per bullet / sweep beam
+    "skill_pick", "skill_reflect",                  # skill item caught / enemy shot bounced back by the reflect shield
 ]
 # Shipped as .wav (no Vorbis encoder was available); AudioManager also tries .ogg with the same stem
 SOUND_FILES = {name: f"assets/sound/{name}.wav" for name in SFX_NAMES}
@@ -240,6 +241,9 @@ SKILL_KINDS = ("multiball", "reflect")      # picked 50/50
 MULTIBALL_ANGLES = (-25.0, 0.0, 25.0)       # degrees from vertical; the bonus balls ignore BOSS_MAX_BALLS
 REFLECT_TIME = 5.0                  # s a reflect shield lasts (a second pick-up refreshes it, no stacking)
 REFLECT_SHAPE_DAMAGE = {"orb": 1.0, "bolt": 1.5, "shard": 2.0}   # x ball_base_damage(n) when a reflected shot hits the boss
+REFLECT_BLINK_TIME = 1.2            # s: the shield and its timer bar blink when this little time is left
+REFLECT_PUSH_OUT = 4.0              # px: a bounced shot is moved this far above the paddle top so it cannot touch it again
+SKILL_ITEM_RADIUS = 17              # px: skill item (a bit bigger than an energy cell, 15)
 MAX_START_BOSS = 9                  # --start-boss cap: level 90 is the last level difficulty.MAX_LEVEL (99) can reach
 BOSS_UPGRADES = ("wide", "magnet", "life", "power", "speed")   # reward choices (3 of these are offered)
 UPGRADE_MAX_STACK = 3               # times one upgrade can be taken in a run

@@ -27,7 +27,7 @@ SFX_NAMES = ["catch", "catch_rare", "catch_epic", "miss", "bomb", "powerup", "sh
              "heart", "combo_up", "level_up", "countdown", "go", "ui_move", "ui_select",
              "ui_back", "game_over", "new_record",
              "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
-             "boss_shot", "boss_sweep"]
+             "boss_shot", "boss_sweep", "skill_pick", "skill_reflect"]
 
 rng = np.random.default_rng(1234)   # fixed seed -> reproducible noise
 
@@ -365,6 +365,23 @@ def sfx_boss_sweep():
     wash = lowpass(noise(dur), sweep(6000, 500, dur)) * env(dur, attack=0.01, decay=0.3) * 0.4
     thump = osc(sweep(150, 45, 0.22), 0.22) * env(0.22, attack=0.001, decay=0.07)
     return mix((body, 0), (wash, 0), (thump * 0.9, 0))
+
+
+def sfx_skill_pick():
+    """Skill item caught: a bright rising three-note arpeggio with a sparkle on top (~0.4 s), clearly 'a gift'."""
+    arp = arpeggio([76, 83, 88], 0.07, 0.2, wave_="tri", decay=0.1, cutoff=6000)
+    sparkle = osc(sweep(2400, 4200, 0.18), 0.18) * env(0.18, attack=0.002, decay=0.07) * 0.25
+    return echo(mix((arp, 0), (sparkle, 0.12)), 0.08, 0.3, 2)
+
+
+def sfx_skill_reflect():
+    """An enemy shot bounces off the reflect shield: a short metallic 'ting' with a quick upward chirp (~0.2 s).
+    It can fire several times in a row, so it stays small and dry."""
+    dur = 0.2
+    chirp = osc(sweep(1500, 2700, 0.05), 0.05) * env(0.05, attack=0.001, decay=0.03) * 0.5
+    ring = (osc(2600, dur) + osc(2600 * 2.76, dur) * 0.35 + osc(2600 * 5.4, dur) * 0.15) * env(dur, attack=0.001, decay=0.06)
+    thud = osc(sweep(420, 220, 0.06), 0.06) * env(0.06, attack=0.001, decay=0.025) * 0.4
+    return mix((ring * 0.6, 0), (chirp, 0), (thud, 0))
 
 
 RECIPES = {name: globals()[f"sfx_{name}"] for name in SFX_NAMES}
