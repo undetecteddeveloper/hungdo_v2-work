@@ -245,7 +245,9 @@ block at the bottom of `config.py` (hp, damage, timings, upgrade steps); `set_up
 boss-reward upgrades into `player_w()`, `player_*speed*()` and `magnet_radius()` (reset every round).
 
 Boss number `n` (n=1 at level 10) uses design `kind = (n-1) % 3` and repeats with `cycle = (n-1)//3`: hp x(1 + 0.35 cycle), attacks
-x(1 + 0.20 cycle). Three designs: 0 Hex Core (orange), 1 Prism (magenta), 2 Void Eye (purple); each has its own attack pool per phase.
+x(1 + 0.20 cycle). Hp and damage live in `config.py` (`boss_max_hp(n)`, `ball_base_damage(n)`, `beam_damage(n)`, `reflect_damage(n, shape)`,
+`boss_points(dealt, n)`): boss n has `2000 * n * (1 + 0.35 cycle)` hp, a tier-1 ball hit deals `50 * n` (so ~40 hits for bosses 1-3, more on later cycles),
+a beam shot 17% of that boss's max hp, score `dealt / n` per hp. Three designs: 0 Hex Core (orange), 1 Prism (magenta), 2 Void Eye (purple); each has its own attack pool per phase.
 
 ### State machine (`systems/boss.py`, `BossController.state`)
 `idle -> intro (BOSS_INTRO_TIME, no shots, not damageable) -> fight -> enrage (after BOSS_TIME_LIMIT, one way) -> victory
@@ -265,18 +267,29 @@ Fairness (tests): every volley leaves a reachable safe spot for the real `Player
 
 ### Objects (`entities/boss_items.py`)
 `Projectile` (straight line, `hits(rect)` circle-vs-rect), `EnergyItem` (falls, magnet-able), `HelperBall` (`falling` until the paddle
-touches it, then `flying` at constant `BOSS_BALL_SPEED`; paddle bounce angle follows the hit position, walls/ceiling reflect, boss hit
-deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns events `caught paddle wall ceiling boss lost`),
+touches it, then `flying`; paddle bounce angle follows the hit position, walls/ceiling reflect; `update(dt, ts, magnet_x, paddle, boss_rect)` returns events `caught paddle wall ceiling boss lost`).
+Speed tiers: a caught ball starts at tier 1; every paddle bounce while flying raises its `tier` by one (max 3, each ball has its own; walls, ceiling and the boss do not change it).
+`config.BALL_TIER_SPEEDS = (620, 800, 1000)` px/s, `BALL_TIER_DAMAGE = (1, 2, 3)`; `ball.speed`, `ball.damage_mult`, `ball.tier_up` (new tier after this `update`, else 0 -> play.py plays `ball_tier2/3`).
+`HelperBall.launched(x, y, angle_deg, bonus=True)` makes a tier-1 ball that is already flying (multi-ball). `SkillItem(kind)` falls like `EnergyItem` (kinds `multiball`, `reflect`),
 `Beam(x, y_from, boss_rect)` (hitscan resolved at creation). Every object has `on_resize(old_w)`.
 
 ### Rules in `scenes/play.py`
 - Level reaches `next_boss_level` -> ordinary items vanish (no penalty), `warning` + `boss_intro`, `boss.start(n)`; level and ordinary
   spawns are frozen, score only comes from damage (`BOSS_POINTS_PER_HP` per hp) and the defeat bonus (`BOSS_CLEAR_BONUS * bosses`).
-- A shot or sweep touching the paddle behaves like a bomb (shield soaks it, else -1 life) then `BOSS_HIT_IFRAMES` of invulnerability
+- A shot or sweep touching the paddle (unless the reflect shield turns the shot back, see below) behaves like a bomb (shield soaks it, else -1 life) then `BOSS_HIT_IFRAMES` of invulnerability
   (the paddle blinks). A ball falling past the paddle costs nothing but time: `PlayScene._on_ball_lost` shows `MẤT BÓNG!`, counts `stats["balls_lost"]`
   and `BossController.ball_lost()` holds the next helper ball back for at least `BOSS_BALL_RESPAWN` (3 s). Helpers falling past cost nothing either.
-- Energy items only come from the ball: every `BOSS_HITS_PER_ENERGY` (2) ball hits on the boss one falls from the boss (beam hits
-  do not count). Catching `BOSS_ENERGY_NEED` (2) energy items (hold up to `BOSS_ENERGY_CAP` = 4, i.e. two shots) arms the beam: Space fires straight up from the paddle.
+- Energy items only come from the ball: every `BOSS_HITS_PER_ENERGY` (2) ball hits on the boss one falls from the boss (beam hits,
+  bonus balls and reflected shots do not count). Catching `BOSS_ENERGY_NEED` (2) energy items (hold up to `BOSS_ENERGY_CAP` = 4, i.e. two shots) arms the beam: Space fires straight up from the paddle.
+- Skill items (`systems/skills.py`: `SkillDrops`, `ReflectShield`, `reflect_projectile`): every hit that really damages the boss (ball, beam, reflected shot)
+  rolls `SKILL_DROP_CHANCE` (20%), at most one per `SKILL_DROP_COOLDOWN` (7 s of fighting) and only one skill item on the field; the kind is 50/50.
+  Catching it (paddle `catch_rect`) uses it at once, no slot, no key. Missing it costs nothing.
+  - `multiball`: three bonus balls from the paddle at `MULTIBALL_ANGLES` (-25, 0, +25 deg), tier 1 each. They are outside `BOSS_MAX_BALLS`, hurt like any ball
+    but do not feed the energy counter; losing one costs no life, does not call `ball_lost()` and just vanishes. Autoplay ignores them.
+  - `reflect` (`REFLECT_TIME` 5 s, picking another refreshes it): a boss `Projectile` touching the paddle does not hurt and sets no `BOSS_HIT_IFRAMES`;
+    its vertical velocity is mirrored and it is marked `reflected` (harmless to the player from then on). It damages the boss once
+    (`reflect_damage(n, shape)` = `50 * n` x orb 1 / bolt 1.5 / shard 2) and disappears, or just leaves the screen. Sweeps are NOT stopped.
+    Drawn as a glow around the paddle with a time bar above it (blinks in the last `REFLECT_BLINK_TIME` 1.2 s); HUD gets `reflect_left`, `reflect_frac`.
 - Defeat: field cleared, lives refilled, bonus added, `push("boss_reward", options, number, bonus, owned, on_pick)`; the chosen
   upgrade (`wide magnet life power speed`, max `UPGRADE_MAX_STACK` each, until the round ends) is applied, then normal play resumes
   after `RESUME_GRACE` and `next_boss_level += BOSS_EVERY`.
@@ -288,7 +301,7 @@ deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns 
   the goal (energy items, lining up under the boss) and fires the beam; it goes for the helper balls (the only source of energy) but is weak at juggling a ball while dodging: it often loses.
 - Sounds (synthesised by `tools/synth_sfx.py`): `boss_intro boss_hit beam_charge beam_fire boss_defeat warning`, plus the boss's own attacks: `boss_shot` plays once per bullet fired
   (`systems/shot_sfx.py`: `ShotSfx` spaces the blips 24-40 ms apart, lowers each blip's volume with the crowd size and keeps at most 5
-  sounding at once; the scene plays them with `AudioManager.play(..., min_interval=0.0)`), and `boss_sweep` on `sweep_fire`.
+  sounding at once; the scene plays them with `AudioManager.play(..., min_interval=0.0)`), and `boss_sweep` on `sweep_fire`; `ball_tier2` / `ball_tier3` (a ball goes up a speed tier), `skill_pick` (skill item caught) and `skill_reflect` (a shot bounced back).
 
 ## Performance rules
 - All loaded/created surfaces `convert()`/`convert_alpha()`; caches for glow, text, icons; no `pg.font.Font(...)` outside Assets.
