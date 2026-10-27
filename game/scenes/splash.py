@@ -24,6 +24,7 @@ TOTAL_TIME = CARDS * CARD_TIME + (CARDS - 1) * GAP
 
 TITLE_SIZE = 104
 ICON_SIZE = 150
+TITLE_LOGO_GAP = 36                 # px between the title and the logo under it
 LOGO_SIZE = 130
 LINE_SIZE = 40
 LOGO_DIR = "assets/images/logos"
@@ -109,10 +110,10 @@ class SplashScene(Scene):
     def _draw_title(self, surf) -> None:
         a = self.app.assets
         tm = self.app.time
-        cx, cy = config.LOGICAL_W // 2, config.LOGICAL_H // 2
-        icon = a.image("assets/icon.png", size=ICON_SIZE)
-        if icon is not None:
-            surf.blit(icon, icon.get_rect(center=(cx, cy - 150)))
+        # Title on top, the game logo underneath; the pair is centred on the screen
+        block = TITLE_SIZE + TITLE_LOGO_GAP + ICON_SIZE
+        cx = config.LOGICAL_W // 2
+        cy = (config.LOGICAL_H - block) // 2 + TITLE_SIZE // 2
         title = t("menu.title")
         pulse = 0.5 + 0.5 * math.sin(tm * 2.4)
         # Same look as the menu title: magenta haze, cyan inner glow, crisp core
@@ -128,6 +129,9 @@ class SplashScene(Scene):
         tr = tag.get_rect(center=(cx + core.get_width() // 2 + 6, cy + 46))
         tr.right = min(tr.right, config.LOGICAL_W - 2)
         surf.blit(tag, tr)
+        icon = a.image("assets/icon.png", size=ICON_SIZE)
+        if icon is not None:
+            surf.blit(icon, icon.get_rect(midtop=(cx, cy + TITLE_SIZE // 2 + TITLE_LOGO_GAP)))
 
     def _draw_tools(self, surf) -> None:
         a = self.app.assets

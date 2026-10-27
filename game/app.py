@@ -26,8 +26,9 @@ SCENE_MODULES = {
     "howto": (".scenes.howto", ("HowToScene", "HowtoScene")),
     "confirm_quit": (".scenes.confirm_quit", ("ConfirmQuitScene",)),
     "boss_reward": (".scenes.boss_reward", ("BossRewardScene",)),
+    "cheat_boss": (".scenes.cheat_boss", ("CheatBossScene",)),       # CHEAT (temporary): F9 boss picker
 }
-OVERLAY_PLACEHOLDERS = {"pause", "settings", "confirm_quit", "boss_reward"}
+OVERLAY_PLACEHOLDERS = {"pause", "settings", "confirm_quit", "boss_reward", "cheat_boss"}
 SETTINGS_SAVE_DELAY = 0.4     # seconds to wait after the last change before writing settings.json
 
 MOUSE_EVENTS = (pg.MOUSEMOTION, pg.MOUSEBUTTONDOWN, pg.MOUSEBUTTONUP)

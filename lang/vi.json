@@ -127,5 +127,9 @@
   "upgrade.power.name": "Hoả lực",
   "upgrade.power.desc": "Bóng và tia mạnh thêm 25%",
   "upgrade.speed.name": "Thanh nhanh",
-  "upgrade.speed.desc": "Thanh hứng chạy nhanh hơn 10%"
+  "upgrade.speed.desc": "Thanh hứng chạy nhanh hơn 10%",
+  "cheat.title": "CHEAT: CHỌN BOSS",
+  "cheat.boss": "Boss {n}  ·  lv {lv}",
+  "cheat.back": "Đóng",
+  "cheat.hint": "Tạm thời, để thử nghiệm"
 }

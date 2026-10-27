@@ -223,8 +223,8 @@ class PlayScene(Scene):
                 self.held[1] = True
             elif event.key in FIRE_KEYS:
                 self._fire_beam()
-            elif event.key == pg.K_F9:                      # CHEAT (temporary): jump straight to the next boss
-                self._cheat_boss()
+            elif event.key == pg.K_F9:                      # CHEAT (temporary): pick a boss to fight
+                self._cheat_menu()
         elif event.type == pg.KEYUP:
             if event.key in LEFT_KEYS:
                 self.held[-1] = False
@@ -590,11 +590,20 @@ class PlayScene(Scene):
         self.bg.set_accent(level_hue(self.level))
         self._check_level()
 
-    def _cheat_boss(self) -> None:                          # CHEAT (temporary, remove after testing)
-        """F9: skip to the next boss fight. The round no longer counts for the high score."""
+    def _cheat_menu(self) -> None:                          # CHEAT (temporary, remove after testing)
+        """F9: open the boss picker (the round is paused under it)."""
+        if self.state == "playing" and not self.boss_mode and self.app.scenes.top is self and not self.app.scenes.pending:
+            self.app.scenes.push("cheat_boss", on_pick=self._cheat_boss, current=self.next_boss_level // config.BOSS_EVERY)
+
+    def _cheat_boss(self, number: int = None) -> None:      # CHEAT (temporary, remove after testing)
+        """Jump to boss `number` (default: the next one). The round no longer counts for the high score."""
         if self.state != "playing" or self.boss_mode:
             return
         self.practice = True
+        if number is not None:
+            number = max(1, min(config.MAX_START_BOSS, int(number)))
+            self.next_boss_level = number * config.BOSS_EVERY
+            self.bosses_defeated = number - 1
         self.score = max(self.score, difficulty.score_for_level(self.next_boss_level))
         self._check_level()
 

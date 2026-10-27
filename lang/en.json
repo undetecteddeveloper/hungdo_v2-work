@@ -127,5 +127,9 @@
   "upgrade.power.name": "Firepower",
   "upgrade.power.desc": "Ball and beam 25% stronger",
   "upgrade.speed.name": "Quick paddle",
-  "upgrade.speed.desc": "Paddle 10% faster"
+  "upgrade.speed.desc": "Paddle 10% faster",
+  "cheat.title": "CHEAT: PICK BOSS",
+  "cheat.boss": "Boss {n}  ·  lv {lv}",
+  "cheat.back": "Close",
+  "cheat.hint": "Temporary, for testing"
 }
