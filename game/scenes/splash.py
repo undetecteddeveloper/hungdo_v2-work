@@ -1,6 +1,7 @@
 """Splash screen: two cards one after the other (the game title, then the tools it was made with).
 
-Each card fades in, holds and fades out through black. Any key or click skips to the menu.
+The neon background stays on the whole time; the content of each card (logos and text) fades in, holds and
+fades out on top of it. Any key or click skips to the menu.
 """
 import math
 
@@ -16,7 +17,7 @@ PAL = config.PALETTE
 FADE_IN = 0.6                       # s
 HOLD = 1.3                          # s fully visible
 FADE_OUT = 0.6                      # s
-GAP = 0.25                          # s of black between the two cards
+GAP = 0.25                          # s of empty background between the two cards
 CARD_TIME = FADE_IN + HOLD + FADE_OUT
 CARDS = 2
 TOTAL_TIME = CARDS * CARD_TIME + (CARDS - 1) * GAP
@@ -40,7 +41,7 @@ def _smooth(x: float) -> float:
 
 
 def splash_state(tm: float):
-    """(card index, opacity 0..1) at `tm` seconds since the start; (None, 0.0) in a gap or once finished."""
+    """(card index, opacity of that card's content 0..1) at `tm` seconds since the start; (None, 0.0) in a gap or once finished."""
     for i in range(CARDS):
         start = i * (CARD_TIME + GAP)
         local = tm - start
@@ -88,18 +89,20 @@ class SplashScene(Scene):
 
     #Drawing
     def draw(self, surf):
+        self.bg.draw(surf)
         card, alpha = splash_state(self.timer)
-        surf.fill(PAL["black"])
         if card is None or alpha <= 0.0:
             return
+        draw = self._draw_title if card == 0 else self._draw_tools
+        if alpha >= 1.0:
+            draw(surf)
+            return
+        # Draw the card on a copy of the background, then fade that copy in: background + alpha * content
         if self._buf is None or self._buf.get_size() != surf.get_size():
             self._buf = pg.Surface(surf.get_size(), 0, surf)
         buf = self._buf
-        self.bg.draw(buf)
-        if card == 0:
-            self._draw_title(buf)
-        else:
-            self._draw_tools(buf)
+        buf.blit(surf, (0, 0))
+        draw(buf)
         buf.set_alpha(int(round(alpha * 255)))
         surf.blit(buf, (0, 0))
 

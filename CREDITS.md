@@ -56,7 +56,7 @@ the OpenGameArt pages list "CC0").
 | `sound/ui_back.wav` | `back_004.ogg` | Interface Sounds | Kenney (kenney.nl) | https://kenney.nl/assets/interface-sounds | CC0 1.0 |
 | `sound/level_up.wav` | `jingles_NES12.ogg` | Music Jingles (8-Bit) | Kenney (kenney.nl) | https://kenney.nl/assets/music-jingles | CC0 1.0 |
 | `sound/game_over.wav` | `jingles_NES00.ogg` | Music Jingles (8-Bit) | Kenney (kenney.nl) | https://kenney.nl/assets/music-jingles | CC0 1.0 |
-| `sound/boss_shot.wav`, `boss_burst.wav`, `boss_sweep.wav` | original, procedural (`tools/synth_sfx.py boss_shot boss_burst boss_sweep`) | — | Hứng Đồ v2 project | — | same as project |
+| `sound/boss_shot.wav`, `boss_sweep.wav` | original, procedural (`tools/synth_sfx.py boss_shot boss_sweep`) | — | Hứng Đồ v2 project | — | same as project |
 | `sound/new_record.wav` | original, procedural (`tools/synth_sfx.py new_record`) | — | Hứng Đồ v2 project | — | same as project |
 | `sound/music_game.ogg` | `synthwavehouse.ogg`, unmodified | Synthwave House Loop | Fupi | https://opengameart.org/content/synthwave-house-loop | CC0 1.0 |
 | `sound/music_menu.wav` | `menu_chill.wav`, unmodified | Menu Chill Music | etrock | https://opengameart.org/content/menu-chill-music | CC0 1.0 |

@@ -118,8 +118,8 @@ def lum(surf: pg.Surface, x: int, y: int) -> int:
 
 def boss_state(**kw) -> dict:
     b = {"name_key": "boss.kind.0.name", "number": 1, "kind": 0, "state": "fight", "hp_frac": 1.0, "phase": 1,
-         "time_left": 65.0, "enraged": False, "colors": ("orange", "yellow"), "energy": 0, "energy_need": 3,
-         "energy_cap": 6, "balls": 0, "player_x": 200.0, "boss_x": 270.0, "boss_half_w": 80.0}
+         "time_left": 65.0, "enraged": False, "colors": ("orange", "yellow"), "energy": 0, "energy_need": config.BOSS_ENERGY_NEED,
+         "energy_cap": config.BOSS_ENERGY_CAP, "balls": 0, "player_x": 200.0, "boss_x": 270.0, "boss_half_w": 80.0}
     b.update(kw)
     return b
 
@@ -204,7 +204,7 @@ def test_hud_boss_draws_every_state():
         surf = blank()
         for state in ("intro", "fight", "enrage", "victory"):
             for kind, cols in enumerate((("orange", "yellow"), ("magenta", "cyan"), ("purple", "green"))):
-                for energy in (0, 2, 3, 5, 6):
+                for energy in (0, 1, config.BOSS_ENERGY_NEED, config.BOSS_ENERGY_CAP - 1, config.BOSS_ENERGY_CAP):
                     for px in (0.0, w * 0.25, w / 2, float(w)):
                         boss = boss_state(state=state, kind=kind, name_key=f"boss.kind.{kind}.name", colors=cols,
                                           energy=energy, player_x=px, boss_x=w / 2, enraged=state == "enrage",
@@ -220,7 +220,7 @@ def test_hud_boss_draws_every_state():
         run_hud(hud, app, surf, hud_state(boss={"colors": ((255, 0, 0), (0, 255, 0)), "state": "fight"}), 2)
         # Language switch is live
         i18n.set_language("en")
-        run_hud(hud, app, surf, hud_state(boss=boss_state(energy=4)), 2)
+        run_hud(hud, app, surf, hud_state(boss=boss_state(energy=config.BOSS_ENERGY_CAP)), 2)
         i18n.set_language("vi")
     set_width(BASE_W)
 
@@ -233,20 +233,20 @@ def test_hud_boss_layout():
         app = _HudApp(a)
         hud = hud_mod.Hud(app)
         surf = blank()
-        state = hud_state(boss=boss_state(energy=2, boss_x=w / 2, player_x=w / 2), powerups=[], shield=0)
+        state = hud_state(boss=boss_state(energy=config.BOSS_ENERGY_NEED - 1, boss_x=w / 2, player_x=w / 2), powerups=[], shield=0)
         run_hud(hud, app, surf, state, 120)
         # hp bar visible (full) and the boss body zone (y 160..310) untouched by the HUD
         bar_y = hud_mod.BOSS_BAR_Y + hud_mod.BOSS_BAR_H // 2
         assert lum(surf, 18 + 40, bar_y) > 250, "hp bar filled"
         assert is_blank(surf, pg.Rect(0, 160, w, 150)), "HUD leaves the boss area alone"
         assert is_blank(surf, pg.Rect(0, 690, w, 70)), "HUD leaves the paddle row alone (no beam shot ready)"
-        # energy meter: 2 lit cells and the label are in the bottom-left corner
+        # energy meter: one lit cell (one short of a beam shot) and the label are in the bottom-left corner
         corner = pg.Rect(0, H - 60, 200, 60)
         assert not is_blank(surf, corner), "energy meter drawn"
         assert is_blank(surf, pg.Rect(300, H - 60, max(10, w - 300), 60)), "nothing else down there"
         # more energy -> more lit pixels
         counts = []
-        for energy in (0, 1, 3, 6):
+        for energy in (0, 1, config.BOSS_ENERGY_NEED, config.BOSS_ENERGY_CAP):
             run_hud(hud, app, surf, hud_state(boss=boss_state(energy=energy, state="intro"), powerups=[], shield=0), 40)
             counts.append(sum(lum(surf, x, y) > 200 for y in range(H - 50, H - 10) for x in range(0, 200)))
         assert counts[0] < counts[1] < counts[2] < counts[3], f"energy cells light up: {counts}"
@@ -305,27 +305,27 @@ def test_hud_beam_hint():
         def column(surf, x):
             return sum(lum(surf, xx, y) for y in range(400, 650, 2) for xx in range(int(x) - 3, int(x) + 4))
 
-        assert is_blank(frame(energy=2), text_zone), "no text without enough energy"
-        assert column(frame(energy=2), px) == column(blank(), px), "no aim line without enough energy"
+        assert is_blank(frame(energy=config.BOSS_ENERGY_NEED - 1), text_zone), "no text without enough energy"
+        assert column(frame(energy=config.BOSS_ENERGY_NEED - 1), px) == column(blank(), px), "no aim line without enough energy"
         # Ready -> blinking text above the paddle (sample a whole blink cycle) and an aim line
         seen = False
         for _ in range(20):
-            seen = seen or not is_blank(frame(1, energy=3), text_zone)
+            seen = seen or not is_blank(frame(1, energy=config.BOSS_ENERGY_NEED), text_zone)
         assert seen, "beam ready text shows"
-        assert column(frame(energy=3), px) > column(blank(), px), "aim line drawn"
+        assert column(frame(energy=config.BOSS_ENERGY_NEED), px) > column(blank(), px), "aim line drawn"
         # States that cannot fire show no hint
         for st in ("intro", "victory"):
-            s2 = frame(energy=6, state=st)
+            s2 = frame(energy=config.BOSS_ENERGY_CAP, state=st)
             assert is_blank(s2, text_zone) and column(s2, px) == column(blank(), px), st
         # Aim line is brighter when the paddle is under the boss than when it is off to the side
         half = 60.0
         far = w / 2 + half + config.BOSS_BEAM_WIDTH / 2 + 80
-        on = frame(energy=3, player_x=w / 2, boss_half_w=half)
-        off = frame(energy=3, player_x=far, boss_half_w=half)
+        on = frame(energy=config.BOSS_ENERGY_NEED, player_x=w / 2, boss_half_w=half)
+        off = frame(energy=config.BOSS_ENERGY_NEED, player_x=far, boss_half_w=half)
         assert column(on, w / 2) > column(off, far) * 1.5, "aim line brighter when on target"
         # The boundary follows the beam hit rule (half width + half beam width)
-        edge_in = frame(energy=3, player_x=w / 2 + half + config.BOSS_BEAM_WIDTH / 2 - 2, boss_half_w=half)
-        edge_out = frame(energy=3, player_x=w / 2 + half + config.BOSS_BEAM_WIDTH / 2 + 4, boss_half_w=half)
+        edge_in = frame(energy=config.BOSS_ENERGY_NEED, player_x=w / 2 + half + config.BOSS_BEAM_WIDTH / 2 - 2, boss_half_w=half)
+        edge_out = frame(energy=config.BOSS_ENERGY_NEED, player_x=w / 2 + half + config.BOSS_BEAM_WIDTH / 2 + 4, boss_half_w=half)
         assert column(edge_in, w / 2 + half + config.BOSS_BEAM_WIDTH / 2 - 2) >             column(edge_out, w / 2 + half + config.BOSS_BEAM_WIDTH / 2 + 4) * 1.3
     set_width(BASE_W)
 
@@ -668,8 +668,8 @@ def save_shots() -> None:
 
     for w, name in ((540, "540"), (1260, "1260")):
         set_width(w)
-        for label, kw in (("fight", dict(state="fight", energy=3, hp_frac=0.55, phase=2, time_left=47.0)),
-                          ("enrage", dict(state="enrage", enraged=True, energy=5, hp_frac=0.2, phase=3, time_left=0.0)),
+        for label, kw in (("fight", dict(state="fight", energy=config.BOSS_ENERGY_NEED, hp_frac=0.55, phase=2, time_left=47.0)),
+                          ("enrage", dict(state="enrage", enraged=True, energy=config.BOSS_ENERGY_CAP - 1, hp_frac=0.2, phase=3, time_left=0.0)),
                           ("intro", dict(state="intro", energy=0, hp_frac=1.0))):
             app = _HudApp(a)
             hud = hud_mod.Hud(app)

@@ -84,7 +84,7 @@
   "howto.fullscreen": "Toàn màn hình",
   "howto.fire": "Bắn tia (khi đủ năng lượng)",
   "howto.tip": "Để rơi vật phẩm tốt sẽ mất 1 mạng. Hứng liên tục để tăng combo!",
-  "howto.boss_tip": "Cứ 10 cấp có một boss: hứng bóng nảy để đánh. Cứ 2 lần bóng trúng boss sẽ rơi 1 năng lượng; gom 3 rồi nhấn Space để bắn tia!",
+  "howto.boss_tip": "Cứ 10 cấp có một boss: hứng bóng nảy để đánh. Cứ 2 lần bóng trúng boss sẽ rơi 1 năng lượng; gom 2 rồi nhấn Space để bắn tia!",
 
   "hud.level": "CẤP {n}",
   "hud.best": "KỶ LỤC {score}",

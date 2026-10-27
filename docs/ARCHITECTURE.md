@@ -159,7 +159,7 @@ Starts in `"menu"`.
 Automation hooks (needed by tools/smoke_test.py and the exe self-test):
 - `App(argv=None)` parses: `--autoplay` (sets `app.autoplay = True`; play scene then drives the player with a simple bot and
   the menu auto-starts a game), `--smoke-seconds N` (quit cleanly with exit code 0 after N seconds of wall time),
-  `--start-scene NAME` (default `splash`: title card, then the "Python / Claude Code" card, each fading in and out, any key or click
+  `--start-scene NAME` (default `splash`: title card, then the "Python / Claude Code" card, whose logos and text fade in and out over a constant neon background, any key or click
   skips to the menu; `--autoplay` and `--start-boss` start at `menu` instead), `--data-dir PATH`, `--start-boss N` (`app.start_boss`: practice, every round starts at boss N right after
   the countdown, level 10*N; the high score is not saved).
 - `App.step(frame_dt: float | None = None)` runs exactly one frame (events → fixed updates → draw → present); `run()` loops it.
@@ -276,7 +276,7 @@ deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns 
   (the paddle blinks). A ball falling past the paddle costs nothing but time: `PlayScene._on_ball_lost` shows `MẤT BÓNG!`, counts `stats["balls_lost"]`
   and `BossController.ball_lost()` holds the next helper ball back for at least `BOSS_BALL_RESPAWN` (3 s). Helpers falling past cost nothing either.
 - Energy items only come from the ball: every `BOSS_HITS_PER_ENERGY` (2) ball hits on the boss one falls from the boss (beam hits
-  do not count). Catching `BOSS_ENERGY_NEED` (3) energy items (hold up to `BOSS_ENERGY_CAP`) arms the beam: Space fires straight up from the paddle.
+  do not count). Catching `BOSS_ENERGY_NEED` (2) energy items (hold up to `BOSS_ENERGY_CAP` = 4, i.e. two shots) arms the beam: Space fires straight up from the paddle.
 - Defeat: field cleared, lives refilled, bonus added, `push("boss_reward", options, number, bonus, owned, on_pick)`; the chosen
   upgrade (`wide magnet life power speed`, max `UPGRADE_MAX_STACK` each, until the round ends) is applied, then normal play resumes
   after `RESUME_GRACE` and `next_boss_level += BOSS_EVERY`.
@@ -286,9 +286,9 @@ deals `BOSS_BALL_DAMAGE`; `update(dt, ts, magnet_x, paddle, boss_rect)` returns 
   `draw_victory_banner`, `draw_callout`).
 - Autoplay bot (`PlayScene._boss_*`, `systems/boss_bot.py`): plans the paddle path against every shot and sweep zone, aims at
   the goal (energy items, lining up under the boss) and fires the beam; it goes for the helper balls (the only source of energy) but is weak at juggling a ball while dodging: it often loses.
-- Sounds (synthesised by `tools/synth_sfx.py`): `boss_intro boss_hit beam_charge beam_fire boss_defeat warning`, plus the boss's own attacks: `boss_shot` (aimed / trident / prism volleys),
-  `boss_burst` (fan / spin / row volleys; `play.BOSS_ATTACK_SFX` maps the attack name), one per volley on the `volley` event, and
-  `boss_sweep` on `sweep_fire`.
+- Sounds (synthesised by `tools/synth_sfx.py`): `boss_intro boss_hit beam_charge beam_fire boss_defeat warning`, plus the boss's own attacks: `boss_shot` plays once per bullet fired
+  (`systems/shot_sfx.py`: `ShotSfx` spaces the blips 24-40 ms apart, lowers each blip's volume with the crowd size and keeps at most 5
+  sounding at once; the scene plays them with `AudioManager.play(..., min_interval=0.0)`), and `boss_sweep` on `sweep_fire`.
 
 ## Performance rules
 - All loaded/created surfaces `convert()`/`convert_alpha()`; caches for glow, text, icons; no `pg.font.Font(...)` outside Assets.

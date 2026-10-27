@@ -20,6 +20,7 @@ from ..systems.floating_text import FloatingTexts
 from ..systems.highscore import HighScore
 from ..systems.powerups import PowerUps
 from ..systems.shake import ScreenShake
+from ..systems.shot_sfx import ShotSfx, SFX as SHOT_SFX
 from ..systems.spawner import Spawner
 from ..ui import boss_ui
 from ..ui.hud import Hud
@@ -34,9 +35,6 @@ FIRE_KEYS = (pg.K_SPACE,)
 PAUSE_KEYS = (pg.K_ESCAPE, pg.K_p)
 
 CALLOUT_TIME = boss_ui.CALLOUT_TIME  # boss callout ("PHASE 2", "ENRAGED") duration
-# Sound of a boss volley by attack name: a few fast shots / many shots at once (anything else: "boss_shot")
-BOSS_ATTACK_SFX = {"fan": "boss_burst", "spin": "boss_burst", "row": "boss_burst"}
-BOSS_ATTACK_VOLUME = {"boss_shot": 0.55, "boss_burst": 0.6}
 RESUME_GRACE = 1.6                  # no spawns for this long after the boss reward
 
 GO_TIME = 0.7                       # "GO!" stays on screen this long (spawning already runs)
@@ -74,7 +72,8 @@ class PlayScene(Scene):
         self.powerups = PowerUps()
         self.combo = Combo()
         self.boss = BossController(self.rng)
-        self.bot_balls = True                   # autoplay: go for helper balls (they are the only source of energy)
+        self.shot_sfx = ShotSfx()               # one blip per boss bullet, spread out in time
+        self.bot_balls = True                  # autoplay: go for helper balls (they are the only source of energy)
         self.items = []
         self._flash_surf = None
         self._prewarmed = False
@@ -90,6 +89,7 @@ class PlayScene(Scene):
         self.lives = config.START_LIVES
         # Boss fight state (see docs/ARCHITECTURE.md "Boss fights")
         self.boss.stop()
+        self.shot_sfx.clear()
         self.boss_mode = False
         self.next_boss_level = config.BOSS_EVERY
         self.bosses_defeated = 0
@@ -353,6 +353,7 @@ class PlayScene(Scene):
         self.projectiles.clear()
         self.helpers.clear()
         self.beams.clear()
+        self.shot_sfx.clear()
         boss = self.boss.start(number)
         self._glow_warm = boss_draw.prewarm_glows_iter(boss)    # first draws cost ms: spread them over the intro
         self._warm_tick = 0
@@ -377,6 +378,9 @@ class PlayScene(Scene):
                 self._glow_warm = None
         for s in tick.shots:
             self.projectiles.append(Projectile(s.x, s.y, s.vx, s.vy, s.radius, s.shape, s.color))
+        self.shot_sfx.add(len(tick.shots))
+        for vol in self.shot_sfx.update(dt):
+            self.app.audio.play(SHOT_SFX, vol, min_interval=0.0)       # ShotSfx spaces the blips itself
         for d in tick.drops:
             self.helpers.append(EnergyItem(d.x) if d.kind == "energy" else HelperBall(d.x))
         if tick.events:
@@ -425,9 +429,6 @@ class PlayScene(Scene):
             elif ev == "sweep_fire":
                 self.shake.add(0.4)
                 self.app.audio.play("boss_sweep", 0.7)
-            elif ev == "volley":
-                sfx = BOSS_ATTACK_SFX.get(self.boss.attack, "boss_shot")
-                self.app.audio.play(sfx, BOSS_ATTACK_VOLUME[sfx])
             elif ev in ("phase2", "phase3"):
                 n = int(ev[-1])
                 self._callout(t("boss.phase", n=n), color)
@@ -460,6 +461,7 @@ class PlayScene(Scene):
             self._poof(obj.pos, getattr(obj, "color", PAL["white"]), 8)
         self.projectiles.clear()
         self.helpers.clear()
+        self.shot_sfx.clear()                           # the bullets are gone: so are their pending blips
         self.app.audio.play("boss_defeat")
         self.shake.add(0.9)
         self.bg.pulse(1.0)

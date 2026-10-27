@@ -106,8 +106,10 @@ class AudioManager:
             log.warning(msg, *args)
 
     #Sound effects
-    def play(self, name: str, volume: float = 1.0) -> None:
-        """Play a sfx by name; missing sounds are a silent no-op (warned once)."""
+    def play(self, name: str, volume: float = 1.0, min_interval: float = None) -> None:
+        """Play a sfx by name; missing sounds are a silent no-op (warned once).
+
+        `min_interval` (s) replaces config.SFX_MIN_INTERVAL for callers that schedule their own spacing."""
         if not self.enabled:
             return
         sound = self._sounds.get(name)
@@ -121,7 +123,8 @@ class AudioManager:
         # Avoid stacking the same sfx many times in one instant
         now = pg.time.get_ticks()
         last = self._last_played.get(name)
-        if last is not None and now - last < config.SFX_MIN_INTERVAL * 1000:
+        gap = config.SFX_MIN_INTERVAL if min_interval is None else min_interval
+        if last is not None and now - last < gap * 1000:
             return
         self._last_played[name] = now
 

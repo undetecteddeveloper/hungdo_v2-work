@@ -41,13 +41,13 @@ def run_for(app, seconds):
 #Tests
 def test_timeline():
     s = splash.splash_state
-    assert s(0.0) == (0, 0.0), "starts black"
+    assert s(0.0) == (0, 0.0), "content starts invisible"
     card, a = s(splash.FADE_IN / 2)
     assert card == 0 and 0.0 < a < 1.0, "first card fades in"
     assert s(splash.FADE_IN + splash.HOLD / 2) == (0, 1.0), "first card holds"
     card, a = s(splash.CARD_TIME - splash.FADE_OUT / 2)
     assert card == 0 and 0.0 < a < 1.0, "first card fades out"
-    assert s(splash.CARD_TIME + splash.GAP / 2) == (None, 0.0), "black between the cards"
+    assert s(splash.CARD_TIME + splash.GAP / 2) == (None, 0.0), "empty background between the cards"
     second = splash.CARD_TIME + splash.GAP
     card, a = s(second + splash.FADE_IN / 2)
     assert card == 1 and 0.0 < a < 1.0, "second card fades in"
@@ -129,13 +129,22 @@ def test_draw_fades():
             assert isinstance(sc, splash.SplashScene)
             surf = app.display.surface
 
-            def brightness():
-                return sum(pg.transform.average_color(surf)[:3])
+            ref = surf.copy()
+
+            def diff(x, y):
+                """Mean absolute RGB difference between two same-size surfaces."""
+                d = x.copy()
+                d.blit(y, (0, 0), special_flags=pg.BLEND_RGB_SUB)           # x - y, clamped at 0
+                e = y.copy()
+                e.blit(x, (0, 0), special_flags=pg.BLEND_RGB_SUB)           # y - x
+                return sum(pg.transform.average_color(d)[:3]) + sum(pg.transform.average_color(e)[:3])
 
             def at(tm):
+                """Draw the splash at `tm` into surf; returns how far the frame is from the bare background (0 = none)."""
                 sc.timer = tm
                 sc.draw(surf)
-                return brightness()
+                sc.bg.draw(ref)
+                return diff(surf, ref)
 
             second = splash.CARD_TIME + splash.GAP
             for card, start in ((0, 0.0), (1, second)):
@@ -143,7 +152,7 @@ def test_draw_fades():
                 mid_in = at(start + splash.FADE_IN / 2)
                 full = at(start + splash.FADE_IN + 0.2)
                 mid_out = at(start + splash.CARD_TIME - splash.FADE_OUT / 2)
-                assert dark == 0, f"card {card} starts black"
+                assert dark == 0, f"card {card} starts as bare background"
                 assert dark < mid_in < full, f"card {card} fades in ({dark} {mid_in} {full})"
                 assert dark < mid_out < full, f"card {card} fades out ({mid_out} {full})"
                 if shots:
@@ -152,7 +161,9 @@ def test_draw_fades():
                     pg.image.save(surf, os.path.join(OUT, f"splash_card{card}.png"))
                     at(start + splash.FADE_IN / 2)
                     pg.image.save(surf, os.path.join(OUT, f"splash_card{card}_fade.png"))
-            assert at(splash.CARD_TIME + splash.GAP / 2) == 0, "black in the gap"
+            assert at(splash.CARD_TIME + splash.GAP / 2) == 0, "bare background in the gap"
+            assert at(splash.TOTAL_TIME - 0.01) == 0, "bare background at the very end"
+            assert sum(pg.transform.average_color(surf)[:3]) > 0, "the background is on screen, never black"
             for w in (config.BASE_W, 960, config.max_logical_width()):         # any canvas width
                 config.set_logical_width(w)
                 app.display.apply(app.settings)

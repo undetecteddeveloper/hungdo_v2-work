@@ -27,7 +27,7 @@ SFX_NAMES = ["catch", "catch_rare", "catch_epic", "miss", "bomb", "powerup", "sh
              "heart", "combo_up", "level_up", "countdown", "go", "ui_move", "ui_select",
              "ui_back", "game_over", "new_record",
              "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
-             "boss_shot", "boss_burst", "boss_sweep"]
+             "boss_shot", "boss_sweep"]
 
 rng = np.random.default_rng(1234)   # fixed seed -> reproducible noise
 
@@ -349,15 +349,9 @@ def _pew(f0: float, f1: float, dur: float) -> np.ndarray:
 
 
 def sfx_boss_shot():
-    """Boss fires a few fast shots: one short falling blip with a low body (~0.17 s)."""
-    return _pew(880, 260, 0.17)
-
-
-def sfx_boss_burst():
-    """Boss fires a wide volley: three quick falling blips stacked up in pitch over a puff of noise (~0.38 s)."""
-    puff = lowpass(noise(0.22), sweep(5200, 700, 0.22)) * env(0.22, attack=0.002, decay=0.07) * 0.35
-    return mix((_pew(1040, 300, 0.16), 0), (_pew(820, 240, 0.16) * 0.8, 0.07), (_pew(640, 190, 0.2) * 0.7, 0.14),
-               (puff, 0))
+    """One boss bullet leaving the boss: a short falling blip with a low body (~0.11 s).
+    The game plays one per bullet, a few ms apart (systems/shot_sfx.py), so it has to stay short and clean."""
+    return _pew(960, 300, 0.11)
 
 
 def sfx_boss_sweep():

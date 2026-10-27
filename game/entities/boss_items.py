@@ -304,7 +304,7 @@ class _Faller:
 
 
 class EnergyItem(_Faller):
-    """Energy cell falling from the sky; three of them charge one beam shot."""
+    """Energy cell falling from the sky; BOSS_ENERGY_NEED of them charge one beam shot."""
 
     kind = "energy"
     radius = ENERGY_RADIUS

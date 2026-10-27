@@ -97,7 +97,7 @@ SFX_NAMES = [
     "ui_move", "ui_select", "ui_back", "game_over", "new_record",
     # boss fights (docs/ARCHITECTURE.md "Boss fights")
     "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
-    "boss_shot", "boss_burst", "boss_sweep",        # boss attacks: single shots / many-shot volleys / sweep beam
+    "boss_shot", "boss_sweep",                      # boss attacks: one blip per bullet / sweep beam
 ]
 # Shipped as .wav (no Vorbis encoder was available); AudioManager also tries .ogg with the same stem
 SOUND_FILES = {name: f"assets/sound/{name}.wav" for name in SFX_NAMES}
@@ -215,8 +215,8 @@ BOSS_BEAM_DAMAGE = 17.0             # one beam shot (~17% of a fresh boss)
 BOSS_BALL_DAMAGE = 2.5              # one ball hit (~2.5%)
 BOSS_POINTS_PER_HP = 20             # score for every hp point of damage dealt
 BOSS_CLEAR_BONUS = 1000             # x number of bosses defeated so far (including this one)
-BOSS_ENERGY_NEED = 3                # energy items per beam shot
-BOSS_ENERGY_CAP = 6                 # items you can hold (two shots); more are wasted
+BOSS_ENERGY_NEED = 2                # energy items per beam shot
+BOSS_ENERGY_CAP = 4                 # items you can hold (two shots); more are wasted
 BOSS_BALL_SPEED = 620.0             # px/s, constant while the ball flies
 BOSS_BALL_RADIUS = 11
 BOSS_BALL_MAX_ANGLE = 60.0          # degrees from vertical for a hit on the paddle edge
