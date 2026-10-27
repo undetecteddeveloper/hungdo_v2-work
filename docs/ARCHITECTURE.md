@@ -146,7 +146,7 @@ class SceneManager:
     def push(self, name, **kw); def pop(self)
     @property top
 ```
-Scene names: `"splash"`, `"menu"`, `"play"`, `"pause"`, `"settings"`, `"gameover"`, `"howto"`, `"confirm_quit"`, `"boss_reward"`.
+Scene names: `"splash"`, `"menu"`, `"play"`, `"pause"`, `"settings"`, `"gameover"`, `"howto"`, `"confirm_quit"`, `"boss_reward"`, `"cheat_boss"` (temporary F9 picker, overlay).
 Switch/push/pop requested during update/handle_event are applied at end of frame (deferred) to avoid mutation mid-iteration.
 
 ### app.py — `App`
@@ -159,7 +159,7 @@ Starts in `"menu"`.
 Automation hooks (needed by tools/smoke_test.py and the exe self-test):
 - `App(argv=None)` parses: `--autoplay` (sets `app.autoplay = True`; play scene then drives the player with a simple bot and
   the menu auto-starts a game), `--smoke-seconds N` (quit cleanly with exit code 0 after N seconds of wall time),
-  `--start-scene NAME` (default `splash`: title card, then the "Python / Claude Code" card, whose logos and text fade in and out over a constant neon background, any key or click
+  `--start-scene NAME` (default `splash`: title card (the game title with the logo underneath it), then the "Python / Claude Code" card, whose logos and text fade in and out over a constant neon background, any key or click
   skips to the menu; `--autoplay` and `--start-boss` start at `menu` instead), `--data-dir PATH`, `--start-boss N` (`app.start_boss`: practice, every round starts at boss N right after
   the countdown, level 10*N; the high score is not saved).
 - `App.step(frame_dt: float | None = None)` runs exactly one frame (events → fixed updates → draw → present); `run()` loops it.
@@ -262,7 +262,11 @@ c.hit_rect (None unless damageable)   c.sweeps [Sweep]   c.time_left   c.paddle_
 ```
 Events: `intro_end charge volley sweep_warn sweep_fire phase2 phase3 enrage dead done`. `Shot(x, y, vx, vy, radius, shape, color)`
 becomes an `entities.boss_items.Projectile`; `Drop(kind="ball", x)` becomes a `HelperBall`; energy items are created by play.py (`EnergyItem(x, y)`). The only special
-attack is the `Sweep`: a vertical danger band (warning, then a beam that may glide across `zone`), hits once, always escapable.
+attack is the `Sweep`, the boss's laser: a vertical column that always starts at the boss's own x. Warning = `aim` (the boss slides to the player's x
+at `SWEEP_SLIDE` px/s, the column only shows as a thin sight line under it) then `lock` (`SWEEP_LOCK` 0.85 s: the boss stops, the column is fixed and fully drawn; this is the
+escape window and is what the fairness tests check at widths 540 / 960 / 1960) then `fire` (`SWEEP_FIRE_STATIC` 0.55 s, lethal, hits once). The boss publishes
+`boss.laser` (`"" aim lock fire`), `boss.laser_k` (0..1 in that stage) and `boss.laser_open` (eased 0..1, stays open through the shot, closes after) for the animation.
+Phase 2 and 3 only; one column at a time for every design (no gliding or paired beams any more).
 Fairness (tests): every volley leaves a reachable safe spot for the real `Player` with 0.3 s reaction at widths 540, 960, 1960.
 
 ### Objects (`entities/boss_items.py`)
@@ -302,6 +306,16 @@ Speed tiers: a caught ball starts at tier 1; every paddle bounce while flying ra
 - Sounds (synthesised by `tools/synth_sfx.py`): `boss_intro boss_hit beam_charge beam_fire boss_defeat warning`, plus the boss's own attacks: `boss_shot` plays once per bullet fired
   (`systems/shot_sfx.py`: `ShotSfx` spaces the blips 24-40 ms apart, lowers each blip's volume with the crowd size and keeps at most 5
   sounding at once; the scene plays them with `AudioManager.play(..., min_interval=0.0)`), and `boss_sweep` on `sweep_fire`; `ball_tier2` / `ball_tier3` (a ball goes up a speed tier), `skill_pick` (skill item caught) and `skill_reflect` (a shot bounced back).
+
+### Laser animation (PROTOTYPE, not decided yet) and the F9 boss picker
+- `render/boss_laser.py` paints the boss's firing pose from `boss.laser / laser_k / laser_open` (copied into the draw context by `boss_draw.draw_boss`).
+  Three variants for the Hex Core, chosen by `boss_draw.LASER_VARIANT` (`"A"` default): **A** a hatch in the bottom edge opens and a plasma ball sinks to it;
+  **B** the hexagon layers align and a ringed barrel extends below, a light pulse runs down it; **C** two wing cannons swing down and converge on one point.
+  Prism and Void Eye share one generic pose (glow + collapsing rings at the bottom edge). Once a variant is picked, delete the other two and `LASER_VARIANT`.
+- `python tools/preview_laser.py` opens a window with the real controller and drawing (keys 1 2 3 = variant, Tab = phase, A/D = paddle, Space = fire, S = slow motion);
+  `--sheet` writes `tools/_out/laser_sheet.png` (frames of all variants, no window). No sound is attached to the aim / lock stages yet.
+- F9 in a normal round (CHEAT, temporary) opens `scenes/cheat_boss.py`: a list "Boss 1 - lv 10 ... Boss 9 - lv 90" over the paused round; the pick sets
+  `next_boss_level` / `bosses_defeated` and starts that boss (practice round: the high score is not saved). Not available during a boss fight.
 
 ## Performance rules
 - All loaded/created surfaces `convert()`/`convert_alpha()`; caches for glow, text, icons; no `pg.font.Font(...)` outside Assets.

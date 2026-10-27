@@ -358,6 +358,69 @@ def mk_beam(**kw) -> NS:
     return NS(**d)
 
 
+def test_laser_poses():
+    """Every boss, every laser stage and animation variant draws without error, stays near the body, the variants differ for
+    the Hex Core only, the closed cannon looks like the plain body, and the glow cache stays small."""
+    from game.render import boss_laser
+    stages = [("aim", 0.5, 0.4), ("lock", 0.1, 1.0), ("lock", 0.9, 1.0), ("fire", 0.05, 1.0), ("fire", 0.8, 1.0), ("", 0.0, 0.5)]
+    try:
+        for w in WIDTHS:
+            for kind in range(3):
+                pics = {}
+                for variant in boss_laser.VARIANTS:
+                    boss_draw.LASER_VARIANT = variant
+                    for stage, k, op in stages:
+                        s, b = render(kind, w, laser=stage, laser_k=k, laser_open=op, phase=2)
+                        rect = boss_rect(b)
+                        assert lit(s, rect) > rect.w * rect.h * 0.08, (w, kind, variant, stage)
+                        bb = bbox_lit(s, 60)
+                        assert bb is not None and rect.inflate(300, 360).contains(bb), (w, kind, variant, stage, bb, rect)
+                        pics[(variant, stage, k)] = crop_bytes(s, view_rect(b).inflate(0, 120))
+                key = ("lock", 0.9)
+                d_ab = diff_frac(pics[("A",) + key], pics[("B",) + key])
+                d_ac = diff_frac(pics[("A",) + key], pics[("C",) + key])
+                if kind == 0:
+                    assert d_ab > 0.01 and d_ac > 0.01, (w, d_ab, d_ac)
+                else:
+                    assert d_ab == 0.0 and d_ac == 0.0, (w, kind, "only the Hex Core has variants")
+        # closed and idle: same picture as a boss that was never told about lasers
+        boss_draw.LASER_VARIANT = "B"
+        s1, b1 = render(0, 540, phase=2)
+        s2, b2 = render(0, 540, phase=2, laser="", laser_k=0.0, laser_open=0.0)
+        assert crop_bytes(s1, view_rect(b1)) == crop_bytes(s2, view_rect(b2))
+        # a long shot sequence does not flood the shared neon cache
+        for variant in boss_laser.VARIANTS:
+            boss_draw.LASER_VARIANT = variant
+            neon.clear_cache()
+            s = surface(540)
+            for i in range(600):
+                st = ("aim", "lock", "fire")[min(2, i // 200)]
+                boss = mk_boss(0, anim_t=i * 0.0167, phase=2, laser=st, laser_k=(i % 200) / 200, laser_open=min(1.0, i / 30))
+                boss_draw.draw_boss(s, boss, i * 0.0167)
+            assert len(neon._glows.data) <= 140, (variant, len(neon._glows.data))
+    finally:
+        boss_draw.LASER_VARIANT = "A"
+
+
+def test_sweep_stages_with_real_sweep():
+    """The warning column is a thin sight line while aiming and the full hazard column once locked."""
+    from game.systems.boss import Sweep
+    sw = Sweep(270, 270, 110, warn_time=1.6, fire_time=0.55, lock_time=0.85)
+    bottom = BOSS_Y + 64
+    col = pg.Rect(270 - 40, bottom + 120, 80, 200)
+    shots = {}
+    for name, age in (("aim", 0.4), ("lock", 1.2), ("fire", 1.8)):
+        sw.age = age
+        s = surface(540)
+        boss_draw.draw_sweep(s, sw, bottom, 3.1)
+        shots[name] = brightness(s, col)
+    assert 0.0 < shots["aim"] < shots["lock"] < shots["fire"], shots
+    sw.age = 2.5                                                  # done: nothing
+    s = surface(540)
+    boss_draw.draw_sweep(s, sw, bottom, 3.1)
+    assert brightness(s, col) == 0.0
+
+
 def test_draw_beam():
     for w in WIDTHS:
         for hit in (True, False):
@@ -500,7 +563,8 @@ def test_synth_recipes_registered():
 TESTS = [
     test_draw_boss_matrix, test_boss_edge_positions, test_kinds_look_different, test_boss_states_change_the_picture,
     test_boss_animates_and_is_deterministic, test_death_fades_out, test_boss_duck_typing, test_glow_cache_stays_small,
-    test_prewarm_glows, test_boss_draw_cost, test_draw_sweep, test_sweep_edge_cases, test_draw_beam, test_fx,
+    test_prewarm_glows, test_boss_draw_cost, test_draw_sweep, test_sweep_edge_cases, test_laser_poses,
+    test_sweep_stages_with_real_sweep, test_draw_beam, test_fx,
     test_death_fx_stays_on_the_body, test_boss_wavs, test_wavs_load_in_mixer, test_synth_recipes_registered,
 ]
 

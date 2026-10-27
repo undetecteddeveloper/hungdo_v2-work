@@ -17,6 +17,7 @@ import pygame as pg
 from .. import config
 from ..entities.items import (add_dot, glow_circle_at, glow_rect_at, mix_color, outline,
                               regular_polygon, scale_color)
+from . import boss_laser
 
 TAU = math.tau
 PAL = config.PALETTE
@@ -32,6 +33,7 @@ GLOW_STEP = 8                       # px, glow sizes are quantised so the neon c
 DEATH_LAYER = (480, 420)            # scratch layer for the death fade (covers body + halos)
 DEFAULT_COLORS = (("orange", "yellow"), ("magenta", "cyan"), ("purple", "green"))
 
+LASER_VARIANT = "A"                 # PROTOTYPE: which laser firing animation the Hex Core uses (boss_laser.VARIANTS)
 _layer = None                       # death scratch surface, created on first use
 _stripe_tiles = {}                  # brightness level -> hazard stripe tile
 
@@ -68,7 +70,7 @@ def _ipt(p) -> tuple:
 
 class _Ctx:
     """Per-draw state shared by the three boss painters."""
-    __slots__ = ("s", "cx", "cy", "hw", "hh", "a", "main", "acc", "fl", "ch", "ph", "enr", "d", "gk")
+    __slots__ = ("s", "cx", "cy", "hw", "hh", "a", "main", "acc", "fl", "ch", "ph", "enr", "d", "gk", "kind", "lz", "lk", "lo")
 
 
 def _col(c: _Ctx, col) -> tuple:
@@ -171,7 +173,7 @@ def _draw_hexcore(c: _Ctx) -> None:
     pg.draw.aalines(s, scale_color(acc, 0.7), True, frame(hw - 9, hh - 9))
 
     # Counter-rotating hexagon layers
-    ang1, ang2, ang3 = a * 0.45, -a * 0.8, a * 1.25
+    ang1, ang2, ang3 = boss_laser.align_angles(c, (a * 0.45, -a * 0.8, a * 1.25), LASER_VARIANT)
     _poly(c, regular_polygon(cx, cy, hh * 0.82, 6, ang1), acc, 0.10, 2)
     pts2 = regular_polygon(cx, cy, hh * 0.6, 6, ang2)
     pts3 = regular_polygon(cx, cy, hh * 0.38, 6, ang3)
@@ -411,12 +413,16 @@ def draw_boss(surf: pg.Surface, boss, t: float, assets=None) -> None:
 
     c = _Ctx()
     c.a, c.main, c.acc, c.ph, c.enr, c.ch, c.d = a, main, acc, ph, enr, ch, d
+    c.kind = kind
+    c.lz = str(getattr(boss, "laser", "") or "") if d <= 0 else ""      # laser firing stage (see systems/boss.py)
+    c.lk = _clamp01(float(getattr(boss, "laser_k", 0.0)))
+    c.lo = _clamp01(float(getattr(boss, "laser_open", 0.0))) if d <= 0 else 0.0
     c.fl = max(fl, d * 0.5 + 0.2 * d * math.sin(a * 50.0)) if d > 0 else fl
     c.gk = 1.0 + 0.55 * ch + (0.25 if enr else 0.08) * pulse
     swell = 1.0 + 0.16 * (1.0 - (1.0 - d) ** 3)          # death: the body bloats
     c.hw = float(boss.half_w) * swell
     c.hh = float(boss.half_h) * swell
-    amp = (1.4 if enr else 0.0) + 1.6 * ch + 5.0 * d     # tremble: rage, charge, dying
+    amp = (1.4 if enr else 0.0) + 1.6 * ch + 5.0 * d + boss_laser.tremble(c.lz, c.lk)     # tremble: rage, charge, laser, dying
     jx, jy = amp * math.sin(a * 61.0), amp * 0.7 * math.sin(a * 47.0 + 1.3)
 
     layer = None
@@ -427,9 +433,10 @@ def draw_boss(surf: pg.Surface, boss, t: float, assets=None) -> None:
         c.cx, c.cy = layer.get_width() / 2 + jx, layer.get_height() / 2 + jy
     else:
         c.s = surf
-        c.cx, c.cy = boss.pos.x + jx, boss.pos.y + jy
+        c.cx, c.cy = boss.pos.x + jx, boss.pos.y + jy - boss_laser.recoil(c.lz, c.lk)
 
     _PAINTERS[kind](c)
+    boss_laser.fx(c, LASER_VARIANT)
     if c.fl > 0.12:                                      # white-out flash on top of the body
         glow_circle_at(c.s, (c.cx, c.cy), _q(max(c.hw, c.hh) * 0.9, 6), WHITE, _qi(c.fl * 0.5))
     if d > 0.0:
@@ -517,13 +524,17 @@ def draw_sweep(surf: pg.Surface, sweep, boss_bottom: float, t: float) -> None:
         return
     zone = pg.Rect(left, y0, right - left, h)
     warn = phase == "warn"
+    locking = warn and bool(getattr(sweep, "locked", False))                                  # the column is fixed: full warning
+    if warn and getattr(sweep, "lock_time", 0.0) > 0.0 and not locking:
+        _draw_sweep_aim(surf, sweep, y0, h, t)                        # still aiming: only a thin sight line follows the boss
+        return
     old_clip = surf.get_clip()
     surf.set_clip(pg.Rect(0, y0, W, h).clip(old_clip))               # the strip belongs below the boss
-    kw = _clamp01(sweep.k_warn) if warn else 1.0
+    kw = (_clamp01(getattr(sweep, "k_lock", 0.0)) if locking else _clamp01(sweep.k_warn)) if warn else 1.0
     kf = 0.0 if warn else _clamp01(sweep.k_fire)
 
     # Flicker speeds up through the warning (2 Hz -> 10 Hz)
-    T = max(0.5, float(getattr(sweep, "warn_time", 1.2)))
+    T = max(0.5, float(getattr(sweep, "lock_time", 0.0) if locking else getattr(sweep, "warn_time", 1.2)))
     cycles = T * (2.0 * kw + 4.0 * kw * kw)
     flick = 0.5 + 0.5 * math.sin(TAU * cycles)
     strength = (0.55 + 0.45 * kw) if warn else (1.0 - kf) * 0.8
@@ -564,11 +575,32 @@ def draw_sweep(surf: pg.Surface, sweep, boss_bottom: float, t: float) -> None:
             fx1 = min(W, int(sweep.x_from + w2))
             _fill_add(surf, pg.Rect(fx0, y0, fx1 - fx0, h), scale_color(RED, 0.10 + 0.32 * kw * kw))
             cxm = (zone.x + zone.right) // 2
-            _warn_sign(surf, cxm, y0 + 56, 58, ORANGE if flick < 0.5 else RED, flick)
+            _warn_sign(surf, cxm, y0 + (118 if locking else 56), 58, ORANGE if flick < 0.5 else RED, flick)
 
     surf.set_clip(old_clip)
     if not warn:
         _draw_sweep_beam(surf, sweep, y0, H, t, kf)
+
+
+def _draw_sweep_aim(surf, sweep, y0: int, h: int, t: float) -> None:
+    """Aiming: a thin dashed sight line under the boss (it follows the boss) and a reticle where the laser will strike."""
+    W = surf.get_width()
+    x = int(sweep.x_from)
+    k = _clamp01(getattr(sweep, "k_aim", 0.0))
+    col = scale_color(_hot(ORANGE, 0.25), 0.35 + 0.5 * k)
+    for yy in range(y0 + (int(t * 160) % 24) - 24, y0 + h, 24):
+        a0, a1 = max(y0, yy), min(y0 + h, yy + 12)
+        if a1 > a0:
+            pg.draw.line(surf, col, (x, a0), (x, a1), 2)
+    _fill_add(surf, pg.Rect(int(x - sweep.width / 2), y0, int(sweep.width), h), scale_color(RED, 0.03 + 0.05 * k))
+    ry = config.PLAYER_Y - 40
+    r = 26 + 6 * math.sin(t * 9)
+    rc = scale_color(_hot(ORANGE, 0.2), 0.45 + 0.4 * k)
+    pg.draw.circle(surf, rc, (x, ry), int(r), 2)
+    for i in range(4):
+        ang = t * 1.6 + i * math.pi / 2
+        pg.draw.line(surf, rc, (x + math.cos(ang) * (r - 6), ry + math.sin(ang) * (r - 6)),
+                     (x + math.cos(ang) * (r + 9), ry + math.sin(ang) * (r + 9)), 2)
 
 
 def _draw_sweep_beam(surf, sweep, y0: int, H: int, t: float, kf: float) -> None:

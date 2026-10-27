@@ -2,6 +2,7 @@
 
 Run from the repo root:   python -m tests.test_boss
 """
+import itertools
 import math
 import os
 import random
@@ -450,8 +451,8 @@ def test_patrol():
                 b = c.boss
                 lo = b.half_w + config.BOSS_MARGIN
                 hi = config.LOGICAL_W - lo
-                top = 140.0 * config.field_scale() ** 0.5
-                acc = max(boss_mod.PATROL_ACCEL, boss_mod.PATROL_BRAKE) * config.field_scale() ** 0.5
+                top = max(140.0, boss_mod.SWEEP_SLIDE) * config.field_scale() ** 0.5
+                acc = max(boss_mod.PATROL_ACCEL, boss_mod.PATROL_BRAKE, boss_mod.SWEEP_SLIDE_ACCEL) * config.field_scale() ** 0.5
                 prev_x, prev_v = b.pos.x, 0.0
                 xs, still_checked, moved = [], 0, 0.0
                 for i in range(int(40 / DT)):
@@ -463,8 +464,8 @@ def test_patrol():
                     assert lo - 1e-6 <= x <= hi + 1e-6, (w, kind, x)
                     assert abs(v) <= top * 1.001, (w, kind, v)
                     assert abs(v - prev_v) <= acc * DT * 1.05 + 1e-6, (w, kind, v, prev_v)     # smooth: no jerks
-                    if b.charge > 0 or c.sweeps:
-                        assert x == prev_x, (w, kind, "moved while charging / sweeping")
+                    if b.charge > 0 or (c.sweeps and not c._aiming()):
+                        assert x == prev_x, (w, kind, "moved while charging / locked / firing")
                         still_checked += 1
                     moved += abs(x - prev_x)
                     prev_x, prev_v = x, v
@@ -522,12 +523,14 @@ def test_sweeps_fair_and_spaced():
                         rng = random.Random(w + kind * 31 + phase)
                         for _ in range(14):
                             px = rng.uniform(pw / 2, W - pw / 2)
-                            c.boss.pos.x = rng.uniform(150, W - 150)
+                            lo = c.boss.half_w + config.BOSS_MARGIN
+                            c.boss.pos.x = rng.uniform(lo, W - lo)
                             sweeps = c.plan_sweeps(px)
-                            assert 1 <= len(sweeps) <= 2
+                            assert len(sweeps) == 1 and sweeps[0].x_from == sweeps[0].x_to == c.boss.pos.x
                             zones = []
                             for sw in sweeps:
                                 assert sw.warn_time >= 1.1 and 0.45 <= sw.fire_time <= 0.9
+                                assert boss_mod.SWEEP_LOCK_SLIDE_MIN - 1e-9 <= sw.lock_start and 0.5 <= sw.lock_time <= sw.warn_time
                                 assert 90 <= sw.width <= 150
                                 z0, z1 = sw.zone
                                 assert z1 - z0 <= 0.55 * W + 1e-6, (w, kind, phase, z1 - z0)
@@ -542,10 +545,10 @@ def test_sweeps_fair_and_spaced():
                             spans = free_spans(cs, hit, COMFORT_TEST * pw)
                             assert spans, (w, kind, phase, zones)
                             for x in np.arange(pw / 2, W - pw / 2 + 1e-9, 12.0):
-                                t = arrive(float(x), spans, sweeps[0].warn_time, REACT_SWEEP)
-                                assert t <= sweeps[0].warn_time, (w, kind, phase, cycle, enraged, x, zones, t)
-                                worst[w] = max(worst.get(w, 0.0), t / sweeps[0].warn_time)
-    print("  worst sweep escape / warning time: " + ", ".join(f"{w}px: {worst[w]:.2f}" for w in WIDTHS))
+                                t = arrive(float(x), spans, sweeps[0].lock_time, REACT_SWEEP)
+                                assert t <= sweeps[0].lock_time, (w, kind, phase, cycle, enraged, x, zones, t)
+                                worst[w] = max(worst.get(w, 0.0), t / sweeps[0].lock_time)
+    print("  worst sweep escape / lock time: " + ", ".join(f"{w}px: {worst[w]:.2f}" for w in WIDTHS))
     # Pacing over a whole fight: >= 6 s between starts, none overlapping, calm before and after
     for kind in range(3):
         c = to_fight(BossController(random.Random(40 + kind)), kind + 1)
@@ -582,7 +585,7 @@ def test_sweeps_fair_and_spaced():
         if "sweep_warn" in tick.events:
             doubles.append(len(ctrl.sweeps))
     run(c, 60, px=270, on_tick=hook3)
-    assert doubles and all(n == 2 for n in doubles), doubles          # Void Eye phase 3: paired beams
+    assert doubles and all(n == 1 for n in doubles), doubles          # one column under the boss, even for the Void Eye
     for kind in (0, 1):
         c = fight_ctrl(kind, 3, seed=5)
         assert all(len(c.plan_sweeps(270)) == 1 for _ in range(5))
@@ -594,6 +597,86 @@ def pattern_cases():
         for phase in (1, 2, 3):
             for name in fight_ctrl(kind, phase).attack_pool():
                 yield kind, phase, name
+
+
+def test_sweep_slides_locks_and_fires_under_the_boss():
+    """The laser only ever comes from where the boss stands: it slides to the player's x, freezes, then fires straight down."""
+    for w in WIDTHS:
+        with width(w):
+            W = config.LOGICAL_W
+            for kind in range(3):
+                for phase in (2, 3):
+                    c = fight_ctrl(kind, phase, seed=7 + kind)
+                    lo, hi = c._x_range()
+                    c.boss.pos.x = lo if kind % 2 else hi            # start at a wall, the player is on the other side
+                    px = hi if kind % 2 else lo
+                    c._sweep_pending = True
+                    stages, xs, fired = [], [], False
+                    for i in range(int(4.0 / DT)):
+                        tick = c.update(DT, px, 0)
+                        for s in c.sweeps:
+                            if not fired and s.phase == "fire":
+                                fired = True
+                                assert approx(s.x_from, c.boss.pos.x, 1e-9) and s.x_from == s.x_to
+                                assert approx(s.zone[0], c.boss.pos.x - s.width / 2, 1e-9)
+                        if c.sweeps:
+                            stages.append(c.boss.laser)
+                            xs.append((c.boss.pos.x, c.sweeps[0].x_from, c.sweeps[0].frozen))
+                            assert c.boss.pos.x >= lo - 1e-6 and c.boss.pos.x <= hi + 1e-6
+                            assert approx(c.sweeps[0].x_from, c.boss.pos.x, 1e-9), "the column is always under the boss"
+                    assert fired and c.boss.laser == "" and c.boss.laser_open < 1.0
+                    order = [k for k, _ in itertools.groupby(stages)]
+                    assert order == ["aim", "lock", "fire"], order
+                    frozen_x = [x for x, _, fz in xs if fz]
+                    assert len(frozen_x) > 0.5 / DT and max(frozen_x) == min(frozen_x), "no movement from the lock on"
+                    assert abs(frozen_x[0] - px) <= 0.7 * abs(xs[0][0] - px), (w, kind, phase, frozen_x[0], px)   # it closed in on the player
+                    assert abs(xs[0][0] - frozen_x[0]) > 0.15 * (hi - lo), "the boss really slid"
+
+
+def test_sweep_laser_stage_and_open_amount():
+    c = fight_ctrl(0, 2, seed=3)
+    b = c.boss
+    assert b.laser == "" and b.laser_k == 0.0 and b.laser_open == 0.0
+    c._sweep_pending = True
+    seen, last_open, opened = set(), 0.0, False
+    for i in range(int(4.0 / DT)):
+        c.update(DT, 270, 0)
+        seen.add(b.laser)
+        assert 0.0 <= b.laser_k <= 1.0 and 0.0 <= b.laser_open <= 1.0
+        if b.laser in ("lock", "fire"):
+            assert b.laser_open > 0.0
+        opened = opened or b.laser_open >= 1.0 - 1e-9
+        if not c.sweeps and b.laser == "" and opened:
+            assert b.laser_open <= last_open + 1e-9, "closes again after the shot"
+        last_open = b.laser_open
+    assert {"aim", "lock", "fire", ""} <= seen and opened and b.laser_open == 0.0
+    # a phase change or the death clears the pose
+    c._sweep_pending = True
+    for _ in range(int(8.0 / DT)):
+        c.update(DT, 270, 0)
+        if c.sweeps:
+            break
+    run(c, 0.9, px=270)
+    assert c.boss.laser in ("aim", "lock")
+    c.damage(c.boss.max_hp)
+    assert c.boss.laser == "" and c.boss.laser_open == 0.0
+
+
+def test_sweep_locked_flag_and_legacy_static():
+    sw = Sweep(200, 200, 100, warn_time=1.5, fire_time=0.5, lock_time=0.7)
+    assert not sw.locked and approx(sw.lock_start, 0.8) and sw.k_lock == 0 and sw.k_aim == 0
+    sw.update(0.4)
+    assert not sw.locked and approx(sw.k_aim, 0.5)
+    sw.update(0.5)
+    assert sw.locked and sw.k_aim == 1 and 0 < sw.k_lock < 1
+    sw.update(0.7)
+    assert sw.phase == "fire" and not sw.locked
+    # a sweep without a lock (old style) stays where it was put: the boss does not drag it around
+    c = to_fight(BossController(random.Random(1)), 1)
+    c.sweeps = [Sweep(100, 100, 100, 0.8, 0.5)]
+    c.boss.pos.x = 400.0
+    run(c, 0.5, px=450)
+    assert c.sweeps[0].x_from == 100 and not c._aiming()
 
 
 def test_pool_design():
@@ -796,8 +879,9 @@ def test_wide_paddle_scale():
                     hit = np.zeros(len(cs), dtype=bool)
                     for z0, z1 in zones:
                         hit |= (cs + pw / 2 > z0) & (cs - pw / 2 < z1)
-                    spans = free_spans(cs, hit, COMFORT_TEST * pw)
-                    assert spans and arrive(px, spans, 1.1, REACT_SWEEP, width_scale=scale) <= 1.1
+                    spans = free_spans(cs, hit, 0.2 * pw)       # a wide paddle on a narrow field only fits beside the column
+                    lock = c.plan_sweeps(px)[0].lock_time
+                    assert spans and arrive(px, spans, lock, REACT_SWEEP, width_scale=scale) <= lock, (w, sweep_phase, px)
 
 
 def test_planner_matches_ground_truth():
@@ -1222,6 +1306,9 @@ TESTS = [
     test_patrol,
     test_sweep_object_and_hits,
     test_sweeps_fair_and_spaced,
+    test_sweep_slides_locks_and_fires_under_the_boss,
+    test_sweep_laser_stage_and_open_amount,
+    test_sweep_locked_flag_and_legacy_static,
     test_pool_design,
     test_shot_basics_and_speed_range,
     test_pattern_geometry,

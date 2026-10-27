@@ -513,7 +513,8 @@ def walk_boss(d: Driver) -> None:
     check(ctrl._ball_t >= config.BOSS_BALL_RESPAWN - 0.1, "the next ball waits after a loss")
     play.lives = config.START_LIVES
 
-    # A shot costs a life, then a second of invulnerability
+    # A shot costs a life, then a second of invulnerability (a skill item caught earlier by chance must not shield it)
+    play._clear_skills()
     play.projectiles.clear()
     play.hurt_timer = 0.0
     lives = play.lives

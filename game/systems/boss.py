@@ -7,7 +7,8 @@ Fairness rules (3.5) are built into the planner: every volley is checked against
 same conservative paddle model the tests use (the player reacts after REACT s, then runs flat out) and
 re-rolled until a comfortable safe spot is reachable before the first shot gets to the paddle line.
 Fans get a gate carved into them, rows get one gap, aimed shots lock onto the player's x at fire time
-(no prediction), sweeps give a long warning and a zone small enough to leave in time.
+(no prediction), sweeps give a long warning: the boss slides to the player's x, then LOCKS (stops, the column is fixed) for
+SWEEP_LOCK s, which is always enough to leave the column in time.
 """
 from __future__ import annotations
 
@@ -50,13 +51,17 @@ SWEEP_FIRST = 4.5                       # s after phase 2 starts until the first
 SWEEP_GAP = {2: 9.0, 3: 7.2}            # s between sweep starts by phase
 SWEEP_MIN_GAP = 6.0                     # s, hard floor between sweep starts
 SWEEP_QUIET = 0.6                       # s without new volleys after a sweep
-SWEEP_WARN = {2: 1.5, 3: 1.35}          # s of warning by phase
+SWEEP_WARN = {2: 1.8, 3: 1.6}           # s of warning by phase: sliding toward the player, then the lock
 SWEEP_WARN_MIN = 1.15                   # s, floor (the contract asks for >= 1.1)
-SWEEP_FIRE_STATIC = 0.55                # s
-SWEEP_FIRE_TRAVEL = {2: 0.85, 3: 0.65}  # s
-SWEEP_MODE = {0: {2: "static", 3: "travel"}, 1: {2: "travel", 3: "travel"}, 2: {2: "static", 3: "double"}}
-SWEEP_REACT = 0.3                       # s: paddle reaction assumed when sizing a sweep zone
-SWEEP_ZONE_MAX = 0.55                   # x LOGICAL_W, hard limit of a single zone
+SWEEP_LOCK = 0.85                       # s at the end of the warning: boss frozen, column fixed (the fair escape window)
+SWEEP_LOCK_SLIDE_MIN = 0.3              # s of sliding kept even when the warning is cut short (enrage, late cycles)
+SWEEP_SLIDE = 600.0                     # px/s (x sqrt(field_scale)): how fast the boss slides to the player's x while aiming
+SWEEP_SLIDE_ACCEL = 3000.0              # px/s^2 (x sqrt(field_scale))
+SWEEP_EASE = 0.25                       # s before the lock in which the slide fades out (no hard stop)
+SWEEP_FIRE_STATIC = 0.55                # s the column stays lethal
+SWEEP_REACT = 0.3                       # s: paddle reaction assumed by zones_are_safe
+LASER_OPEN_RATE = 5.0                   # 1/s: how fast the firing hatch / cannon of the boss opens (drawing only)
+LASER_CLOSE_RATE = 3.0                  # 1/s: ... and closes again after the shot
 
 # Paddle model the planner trusts (the tests use the real Player with a quicker reaction)
 REACT = 0.35                            # s before the paddle starts moving
@@ -162,6 +167,9 @@ class Boss:
         self.enraged = False
         self.anim_t = 0.0
         self.death_t = 0.0
+        self.laser = ""                     # firing stage for the animation: "" | "aim" | "lock" | "fire"
+        self.laser_k = 0.0                  # 0..1 progress inside that stage
+        self.laser_open = 0.0               # 0..1 eased: how far the boss's cannon is open (stays open until the shot is over)
 
     @property
     def hp_frac(self) -> float:
@@ -186,6 +194,27 @@ class Sweep:
     fire_time: float
     age: float = 0.0
     consumed: bool = False
+    lock_time: float = 0.0              # s at the end of the warning in which the column no longer follows the boss
+    frozen: bool = False                # set by the controller once the lock has begun
+
+    @property
+    def lock_start(self) -> float:
+        return max(0.0, self.warn_time - self.lock_time)
+
+    @property
+    def locked(self) -> bool:
+        """Warning stage in which the column is fixed (the boss stands still and the player must leave)."""
+        return self.lock_time > 0.0 and self.phase == "warn" and self.age >= self.lock_start
+
+    @property
+    def k_aim(self) -> float:
+        """0..1 through the sliding / aiming part of the warning."""
+        return _clamp01(self.age / self.lock_start) if self.lock_start > 0.0 else 1.0
+
+    @property
+    def k_lock(self) -> float:
+        """0..1 through the locked part of the warning (0 while still aiming)."""
+        return _clamp01((self.age - self.lock_start) / self.lock_time) if self.lock_time > 0.0 else 0.0
 
     @property
     def phase(self) -> str:
@@ -541,46 +570,6 @@ def _beam_width() -> float:
     return max(90.0, min(150.0, 100.0 * config.field_scale() ** 0.35))
 
 
-def _build_sweeps(ctx: _Ctx, warn: float, fire_static: float, fire_travel: float, mode: str) -> list:
-    """Sweep(s) for this volley slot: placed around the player, always leavable in time."""
-    W, w, rng = ctx.W, ctx.w, ctx.rng
-    bw = _beam_width()
-
-    def spawn(zs: list, fire: float) -> list:
-        return [Sweep(a, b, bw, warn, fire) for a, b in zs]
-
-    if mode == "double":
-        corridor = (1.0 + 0.75) * w
-        half_total = corridor / 2 + bw
-        if W >= 2 * half_total:
-            lo, hi = half_total, W - half_total
-            for attempt in range(9):
-                m = ctx.px if attempt == 8 else ctx.px + rng.uniform(-0.4, 0.4) * corridor
-                m = min(max(m, lo), hi)
-                a = m - corridor / 2 - bw / 2
-                b = m + corridor / 2 + bw / 2
-                zones = [(a - bw / 2, a + bw / 2), (b - bw / 2, b + bw / 2)]
-                if zones_are_safe(zones, ctx.px, warn, w):
-                    return spawn([(a, a), (b, b)], fire_static)
-        mode = "static"                                     # field too narrow for two zones: single beam
-
-    travel = min(0.30 * W, SWEEP_ZONE_MAX * W - bw - 6.0) if mode == "travel" else 0.0
-    zone_w = bw + travel
-    lo, hi = zone_w / 2, W - zone_w / 2
-    fire = fire_travel if mode == "travel" else fire_static
-    for _ in range(8):
-        cz = min(max(ctx.px + rng.uniform(-0.35, 0.35) * zone_w, lo), hi)
-        sign = rng.choice((-1.0, 1.0))
-        x_from, x_to = cz - sign * travel / 2, cz + sign * travel / 2
-        if zones_are_safe([(cz - zone_w / 2, cz + zone_w / 2)], ctx.px, warn, w):
-            return spawn([(x_from, x_to)], fire)
-    # Fallback: a narrow static beam that starts beside the player
-    off = bw / 2 + w / 2 + 20.0
-    cz = ctx.px + off if ctx.px + off <= W - bw / 2 else ctx.px - off
-    cz = min(max(cz, bw / 2), W - bw / 2)
-    return spawn([(cz, cz)], fire_static)
-
-
 #Controller
 class BossController:
     """Owns one boss fight. `update()` returns what to spawn; `damage()` is called by balls / beams."""
@@ -728,6 +717,7 @@ class BossController:
         b = self.boss
         b.charge = 0.0
         b.death_t = 0.0
+        b.laser, b.laser_k, b.laser_open = "", 0.0, 0.0
         self._queue.clear()
         self.sweeps.clear()
         self._astate = "idle"
@@ -806,7 +796,11 @@ class BossController:
         self._update_sweeps(dt, tick)
         self._step_attacks(dt, px, tick)
         self._flush_queue(dt, tick)
-        self._patrol(dt, hold=self._holding())
+        if self._aiming():
+            self._slide(dt, px)
+        else:
+            self._patrol(dt, hold=self._holding())
+        self._sync_laser(dt)
         self._step_drops(dt, balls_alive, tick)
 
     #Sweeps
@@ -819,6 +813,10 @@ class BossController:
             return
         for sw in self.sweeps:
             sw.update(dt)
+            if sw.locked and not sw.frozen:
+                sw.frozen = True                    # the column stays where the boss stands, and the boss stands still
+                self._vx = 0.0
+                self._target = None
         if not self._fire_sent and any(sw.phase == "fire" for sw in self.sweeps):
             self._fire_sent = True
             tick.events.append("sweep_fire")
@@ -826,19 +824,70 @@ class BossController:
         if not self.sweeps:
             self._idle_t = max(self._idle_t, SWEEP_QUIET)
 
-    def plan_sweeps(self, player_x: float) -> list:
-        """Sweep(s) the boss would start now (sizes and timing follow phase, speed and enrage). Test / debug hook."""
+    def _aiming(self) -> bool:
+        """A sweep is in its aiming part: the boss slides toward the player and the column follows the boss."""
+        sw = self.sweeps[0] if self.sweeps else None
+        return sw is not None and sw.lock_time > 0.0 and sw.phase == "warn" and not sw.locked
+
+    def _slide(self, dt: float, px: float) -> None:
+        """Glide toward the player's x (fast, eased out before the lock)."""
+        b = self.boss
+        sw = self.sweeps[0]
+        scale = math.sqrt(config.field_scale())
+        lo, hi = self._x_range()
+        dist = min(max(px, lo), hi) - b.pos.x
+        accel = SWEEP_SLIDE_ACCEL * scale
+        t_left = max(0.0, sw.lock_start - sw.age)
+        cap = SWEEP_SLIDE * scale * min(1.0, t_left / SWEEP_EASE)
+        v_des = math.copysign(min(cap, math.sqrt(2 * accel * 0.8 * abs(dist))), dist) if abs(dist) > 1.0 else 0.0
+        dv = accel * dt
+        if abs(v_des - self._vx) <= dv:
+            self._vx = v_des
+        else:
+            self._vx += math.copysign(dv, v_des - self._vx)
+        b.pos.x += self._vx * dt
+        if b.pos.x < lo or b.pos.x > hi:
+            b.pos.x = min(max(b.pos.x, lo), hi)
+            self._vx = 0.0
+        self._target = None
+
+    def _sync_laser(self, dt: float) -> None:
+        """Keep the unlocked column under the boss and publish the firing stage for the animation."""
+        b = self.boss
+        sw = self.sweeps[0] if self.sweeps else None
+        if sw is None:
+            b.laser, b.laser_k = "", 0.0
+        else:
+            for other in self.sweeps:
+                if other.lock_time > 0.0 and not other.frozen and other.phase == "warn":
+                    other.x_from = other.x_to = b.pos.x
+            if sw.phase == "fire":
+                b.laser, b.laser_k = "fire", sw.k_fire
+            elif sw.locked:
+                b.laser, b.laser_k = "lock", sw.k_lock
+            else:
+                b.laser, b.laser_k = "aim", sw.k_aim
+        goal = 1.0 if sw is not None else 0.0
+        if goal > b.laser_open:
+            b.laser_open = min(goal, b.laser_open + LASER_OPEN_RATE * dt)
+        else:
+            b.laser_open = max(goal, b.laser_open - LASER_CLOSE_RATE * dt)
+
+    def plan_sweeps(self, player_x: float = None) -> list:
+        """The sweep the boss would start now: a column under the boss's CURRENT x (it follows the boss while it slides to the
+        player, then freezes). Sizes and timing follow phase, speed and enrage. Test / debug hook."""
         b = self.boss
         ph = min(3, max(2, b.phase))
         div = math.sqrt(self.speed * (config.BOSS_ENRAGE_RATE if b.enraged else 1.0))
         warn = max(SWEEP_WARN_MIN, SWEEP_WARN[ph] / div)
-        ctx = _Ctx(b, player_x, self._shot_speed(), self.rng, 0.0, self.paddle_scale)
-        return _build_sweeps(ctx, warn, SWEEP_FIRE_STATIC, SWEEP_FIRE_TRAVEL[ph], SWEEP_MODE[b.kind][ph])
+        lock = min(SWEEP_LOCK, warn - SWEEP_LOCK_SLIDE_MIN)
+        return [Sweep(b.pos.x, b.pos.x, _beam_width(), warn, SWEEP_FIRE_STATIC, lock_time=lock)]
 
     def _start_sweep(self, px: float, tick: BossTick) -> None:
         b = self.boss
         ph = min(3, max(2, b.phase))
         self.sweeps[:] = self.plan_sweeps(px)
+        self._vx = 0.0
         self._sweep_pending = False
         self._fire_sent = False
         gap = SWEEP_GAP[ph] / (self.speed * (config.BOSS_ENRAGE_RATE if b.enraged else 1.0))
