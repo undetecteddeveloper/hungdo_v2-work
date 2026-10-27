@@ -84,7 +84,7 @@
   "howto.fullscreen": "Fullscreen",
   "howto.fire": "Fire beam (when charged)",
   "howto.tip": "Dropping a good item costs 1 life. Keep catching to build your combo!",
-  "howto.boss_tip": "Every 10 levels a boss appears: catch the bouncing ball to hit it. Every 2 ball hits drop 1 energy; collect 2 and press Space to fire the beam!",
+  "howto.boss_tip": "Every 10 levels a boss appears: catch the bouncing ball to hit it. 2 ball hits drop 1 energy; collect 2 and press Space to fire the beam! Catch skill items: TRIPLE BALL or REFLECT.",
 
   "hud.level": "LV {n}",
   "hud.best": "BEST {score}",
@@ -111,6 +111,8 @@
   "boss.beam_ready": "SPACE: FIRE BEAM!",
   "boss.energy": "ENERGY",
   "boss.ball_lost": "BALL LOST!",
+  "boss.skill.multiball": "TRIPLE BALL!",
+  "boss.skill.reflect": "REFLECT!",
   "boss.reward.title": "CHOOSE AN UPGRADE",
   "boss.reward.sub": "Lasts until the end of the run",
   "boss.reward.lives": "Lives fully restored",

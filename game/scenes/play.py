@@ -6,7 +6,7 @@ import random
 import pygame as pg
 
 from .. import config
-from ..entities.boss_items import Beam, EnergyItem, HelperBall, Projectile, tier_speed
+from ..entities.boss_items import Beam, EnergyItem, HelperBall, Projectile, SkillItem, tier_speed
 from ..entities.items import Item, catch_y
 from ..entities.player import Player
 from ..i18n import t
@@ -21,6 +21,7 @@ from ..systems.highscore import HighScore
 from ..systems.powerups import PowerUps
 from ..systems.shake import ScreenShake
 from ..systems.shot_sfx import ShotSfx, SFX as SHOT_SFX
+from ..systems.skills import ReflectShield, SkillDrops, reflect_projectile
 from ..systems.spawner import Spawner
 from ..ui import boss_ui
 from ..ui.hud import Hud
@@ -73,6 +74,8 @@ class PlayScene(Scene):
         self.combo = Combo()
         self.boss = BossController(self.rng)
         self.shot_sfx = ShotSfx()               # one blip per boss bullet, spread out in time
+        self.skill_drops = SkillDrops(self.rng)     # boss skill items (multi-ball / reflect), see systems/skills.py
+        self.reflect = ReflectShield()
         self.bot_balls = True                  # autoplay: go for helper balls (they are the only source of energy)
         self.items = []
         self._flash_surf = None
@@ -90,6 +93,7 @@ class PlayScene(Scene):
         # Boss fight state (see docs/ARCHITECTURE.md "Boss fights")
         self.boss.stop()
         self.shot_sfx.clear()
+        self._clear_skills()
         self.boss_mode = False
         self.next_boss_level = config.BOSS_EVERY
         self.bosses_defeated = 0
@@ -354,6 +358,7 @@ class PlayScene(Scene):
         self.helpers.clear()
         self.beams.clear()
         self.shot_sfx.clear()
+        self._clear_skills()
         boss = self.boss.start(number)
         self._glow_warm = boss_draw.prewarm_glows_iter(boss)    # first draws cost ms: spread them over the intro
         self._warm_tick = 0
@@ -369,7 +374,7 @@ class PlayScene(Scene):
         ctrl = self.boss
         if playing and self.app.autoplay:
             self._bot_fire()
-        balls = sum(1 for h in self.helpers if isinstance(h, HelperBall) and h.alive)
+        balls = self._normal_balls()
         ctrl.paddle_scale = self.player.width / config.player_w()      # wide power-up: planner opens bigger gaps
         tick = ctrl.update(dt, self.player.pos.x, balls)
         if self._glow_warm is not None:
@@ -383,6 +388,10 @@ class PlayScene(Scene):
             self.app.audio.play(SHOT_SFX, vol, min_interval=0.0)       # ShotSfx spaces the blips itself
         for d in tick.drops:
             self.helpers.append(EnergyItem(d.x) if d.kind == "energy" else HelperBall(d.x))
+        if playing and ctrl.fighting:
+            self.skill_drops.update(dt)
+        if playing:
+            self.reflect.update(dt)
         if tick.events:
             self._on_boss_events(tick.events)
         if ctrl.state == "victory" and self.particles is not None:
@@ -403,14 +412,19 @@ class PlayScene(Scene):
                 h.update(dt, ts, magnet_x)
                 if playing and h.alive and self.player.catch_rect.colliderect(h.rect):
                     h.alive = False
-                    self._collect_energy(h)
+                    if isinstance(h, SkillItem):
+                        self._collect_skill(h)
+                    else:
+                        self._collect_energy(h)
         for bm in self.beams:
             bm.update(dt)
 
+        if playing and ctrl.fighting:
+            self._reflect_step()                    # shield bounces shots (also in the invulnerable second); bounced shots hit the boss
         if playing and ctrl.fighting and self.hurt_timer <= 0:
             body = self.player.rect
             for p in self.projectiles:
-                if p.alive and p.hits(body):
+                if p.alive and not p.reflected and p.hits(body):
                     p.alive = False
                     self._boss_hit((p.pos.x, min(p.pos.y, self.player.pos.y - 10)))
                     break
@@ -420,6 +434,68 @@ class PlayScene(Scene):
         self.projectiles = [p for p in self.projectiles if p.alive]
         self.helpers = [h for h in self.helpers if h.alive]
         self.beams = [b for b in self.beams if b.alive]
+
+    #Skills (systems/skills.py): items the boss drops after damage; caught = used at once
+    def _clear_skills(self) -> None:
+        self.skill_drops.reset()
+        self.reflect.clear()
+
+    def _normal_balls(self) -> int:
+        """Balls that count against BOSS_MAX_BALLS (the multi-ball bonus balls do not)."""
+        return sum(1 for h in self.helpers if isinstance(h, HelperBall) and h.alive and not h.bonus)
+
+    def _roll_skill_drop(self) -> None:
+        """Called after every damaging hit on the boss: maybe a skill item falls from it."""
+        if not (self.boss_mode and self.boss.fighting):
+            return
+        kind = self.skill_drops.roll(any(isinstance(h, SkillItem) and h.alive for h in self.helpers))
+        if kind is None:
+            return
+        b = self.boss.boss
+        x = min(max(b.pos.x + self.rng.uniform(-0.4, 0.4) * b.half_w, 30), config.LOGICAL_W - 30)
+        item = SkillItem(kind, x, b.pos.y + b.half_h)
+        self.helpers.append(item)
+        if self.particles is not None:
+            self.particles.ring(item.pos, item.color, radius=50, duration=0.4, width=3)
+
+    def _collect_skill(self, item) -> None:
+        """The paddle caught a skill item: multi-ball launches three bonus balls, reflect (re)starts the shield."""
+        pos = (item.pos.x, min(item.pos.y, self.player.pos.y - 14))
+        self.stats["powerups"] += 1
+        self.player.bump(0.4)
+        self.app.audio.play("skill_pick")
+        if item.skill == "multiball":
+            x, y = self.player.pos.x, self.player.rect.top - config.BOSS_BALL_RADIUS
+            for angle in config.MULTIBALL_ANGLES:
+                self.helpers.append(HelperBall.launched(x, y, angle, bonus=True))
+        else:
+            self.reflect.activate()
+        if self.particles is not None:
+            self.particles.ring(pos, item.color, radius=80)
+            self.particles.burst(pos, item.color, count=22, speed=(60, 300), life=(0.3, 0.8))
+        self._popup(t(f"boss.skill.{item.skill}"), (pos[0], pos[1] - 30), item.color, 28)
+
+    def _reflect_step(self) -> None:
+        """Reflect shield: a boss shot touching the paddle bounces back (no damage to us); a bounced shot hurts the boss once."""
+        body, hit_rect = self.player.rect, self.boss.hit_rect
+        for p in self.projectiles:
+            if not p.alive:
+                continue
+            if p.reflected:
+                if hit_rect is not None and p.hits(hit_rect):
+                    p.alive = False
+                    self._damage_boss(config.reflect_damage(self.boss.boss.number, p.shape), p.pos, False)
+            elif self.reflect.active and p.hits(body):
+                reflect_projectile(p, body)
+                self.app.audio.play("skill_reflect", 0.6, min_interval=0.06)
+                self._poof(p.pos, PAL["green"], 6)
+
+    def _on_bonus_ball_gone(self, ball) -> None:
+        """A multi-ball bonus ball fell past the paddle: it just vanishes (no life, no penalty, no sound)."""
+        x = min(max(ball.pos.x, 20), config.LOGICAL_W - 20)
+        if self.particles is not None:
+            self.particles.burst((x, config.LOGICAL_H - 6), PAL["cyan"], count=5, speed=(60, 200),
+                                 life=(0.2, 0.4), angle=-math.pi / 2, spread=math.pi * 0.8)
 
     def _on_boss_events(self, events) -> None:
         color = self._boss_color()
@@ -460,8 +536,9 @@ class PlayScene(Scene):
         for obj in self.projectiles + self.helpers:
             self._poof(obj.pos, getattr(obj, "color", PAL["white"]), 8)
         self.projectiles.clear()
-        self.helpers.clear()
+        self.helpers.clear()                            # skill items and bonus balls go with the rest
         self.shot_sfx.clear()                           # the bullets are gone: so are their pending blips
+        self._clear_skills()
         self.app.audio.play("boss_defeat")
         self.shake.add(0.9)
         self.bg.pulse(1.0)
@@ -505,6 +582,7 @@ class PlayScene(Scene):
         self.projectiles.clear()
         self.helpers.clear()
         self.beams.clear()
+        self._clear_skills()
         self.spawner.reset()
         self.grace = RESUME_GRACE
         self.combo.reset()
@@ -550,13 +628,14 @@ class PlayScene(Scene):
             boss_draw.boss_hit_fx(self.particles, pos, self._boss_color(), heavy)
         b = self.boss.boss
         self._popup(f"+{pts}", (pos[0], b.pos.y + b.half_h + 24), PAL["white"], 30 if heavy else 24)
+        self._roll_skill_drop()
         return dealt
 
     def _ball_hit_boss(self, ball) -> None:
         """A ball hit counts towards the next energy item, which falls from the boss (beam hits do not count)."""
         damage = config.ball_base_damage(self.boss.boss.number) * ball.damage_mult
-        if self._damage_boss(damage, ball.pos, False) <= 0:
-            return
+        if self._damage_boss(damage, ball.pos, False) <= 0 or ball.bonus:
+            return                                  # bonus balls hurt like any ball but earn no energy
         self.ball_hits += 1
         if self.ball_hits % config.BOSS_HITS_PER_ENERGY == 0 and self.boss.fighting:
             b = self.boss.boss
@@ -592,7 +671,10 @@ class PlayScene(Scene):
         elif ev == "boss":
             self._ball_hit_boss(ball)
         elif ev == "lost":
-            self._on_ball_lost(ball)
+            if ball.bonus:
+                self._on_bonus_ball_gone(ball)
+            else:
+                self._on_ball_lost(ball)
 
     def _on_ball_lost(self, ball) -> None:
         """The ball fell past the paddle. No life is lost: the next ball just takes a few seconds to come."""
@@ -865,7 +947,7 @@ class PlayScene(Scene):
         b = ctrl.boss
         if b is None:
             return config.LOGICAL_W / 2, None, None, False, None
-        flying = [h for h in self.helpers if isinstance(h, HelperBall) and h.alive and h.state == "flying"]
+        flying = [h for h in self.helpers if isinstance(h, HelperBall) and h.alive and h.state == "flying" and not h.bonus]
         if flying:
             # A ball coming down is the only source of energy (losing it costs no life): be under it. Hit it so that it comes back near the boss
             # to where it was caught (a ball sent across the field is lost), preferring returns that touch the boss.
@@ -958,7 +1040,8 @@ class PlayScene(Scene):
             "hp_frac": b.hp_frac, "phase": b.phase,
             "time_left": self.boss.time_left, "enraged": b.enraged, "colors": b.colors,
             "energy": self.energy, "energy_need": config.BOSS_ENERGY_NEED, "energy_cap": config.BOSS_ENERGY_CAP,
-            "balls": sum(1 for h in self.helpers if isinstance(h, HelperBall) and h.alive),
+            "balls": self._normal_balls(),
+            "reflect_left": self.reflect.time_left, "reflect_frac": self.reflect.frac,
             "player_x": self.player.pos.x, "boss_x": b.pos.x, "boss_half_w": b.half_w,
         }
 
@@ -979,6 +1062,9 @@ class PlayScene(Scene):
             obj.draw(surf, tm, assets)
         if not (self.hurt_timer > 0 and int(self.hurt_timer * 16) % 2 == 0):    # blink while invulnerable
             self.player.draw(surf, tm)
+        if self.reflect.active:
+            boss_draw.draw_reflect_shield(surf, self.player.pos.x, self.player.pos.y, self.player.width,
+                                          config.PLAYER_H, self.reflect.frac, self.reflect.blinking, tm)
         for bm in self.beams:
             boss_draw.draw_beam(surf, bm, tm)
         if self.particles is not None:
