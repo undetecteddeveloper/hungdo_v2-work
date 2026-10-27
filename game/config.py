@@ -98,6 +98,7 @@ SFX_NAMES = [
     # boss fights (docs/ARCHITECTURE.md "Boss fights")
     "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
     "boss_shot", "boss_sweep",                      # boss attacks: one blip per bullet / sweep beam
+    "ball_tier2", "ball_tier3",                     # a ball speeds up (paddle bounce): sound per new tier
 ]
 # Shipped as .wav (no Vorbis encoder was available); AudioManager also tries .ogg with the same stem
 SOUND_FILES = {name: f"assets/sound/{name}.wav" for name in SFX_NAMES}

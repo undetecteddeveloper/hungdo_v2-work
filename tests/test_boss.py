@@ -199,7 +199,8 @@ def test_design_and_boss_data():
         assert b.name_key == f"boss.kind.{kind}.name"
         assert len(b.colors) == 2 and all(k in config.PALETTE for k in b.colors)
         assert 60 <= b.half_w <= 100 and 50 <= b.half_h <= 75
-        assert approx(b.max_hp, config.BOSS_BASE_HP * (1 + config.BOSS_HP_GROWTH * cycle))
+        assert approx(b.max_hp, config.BOSS_BASE_HP * n * (1 + config.BOSS_HP_GROWTH * cycle))
+        assert approx(b.max_hp, config.boss_max_hp(n))
         assert b.hp == b.max_hp and b.hp_frac == 1.0 and b.phase == 1 and b.charge == 0 and not b.enraged
         assert b.death_t == 0 and b.hit_flash == 0
         assert approx(c.speed, 1 + config.BOSS_SPEED_GROWTH * cycle)
@@ -1245,6 +1246,9 @@ def main() -> int:
     for test in TESTS:
         t0 = time.time()
         base = config.LOGICAL_W
+        real_max_hp = config.boss_max_hp
+        if test is not test_design_and_boss_data:       # the other tests think in percent: damage(35) = 35% of any boss
+            config.boss_max_hp = lambda number: 100.0 * (1.0 + config.BOSS_HP_GROWTH * ((max(1, number) - 1) // config.BOSS_KINDS))
         try:
             test()
             print(f"PASS {test.__name__} ({time.time() - t0:.1f}s)")
@@ -1254,6 +1258,7 @@ def main() -> int:
             import traceback
             traceback.print_exc()
         finally:
+            config.boss_max_hp = real_max_hp
             config.set_logical_width(base)
     print(f"{len(TESTS) - failed}/{len(TESTS)} passed")
     return 1 if failed else 0

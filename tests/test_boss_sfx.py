@@ -197,7 +197,8 @@ def test_real_fight_blips_match_bullets():
             blips = names.count("boss_shot")
             assert blips + scene.shot_sfx.pending == fired["n"], (blips, scene.shot_sfx.pending, fired)
             assert set(names) <= {"boss_shot", "boss_sweep", "warning", "boss_intro", "boss_hit", "miss", "catch",
-                                  "countdown", "go", "beam_charge", "beam_fire", "catch_rare", "boss_defeat"}, set(names)
+                                  "countdown", "go", "beam_charge", "beam_fire", "catch_rare", "boss_defeat",
+                                  "ball_tier2", "ball_tier3"}, set(names)
         finally:
             app.close()
     finally:

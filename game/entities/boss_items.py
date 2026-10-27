@@ -387,6 +387,7 @@ class HelperBall(_Faller):
         self.state = "falling"                  # "falling" (not caught yet) | "flying"
         self.hit_cd = 0.0                       # s left in which a new boss contact is ignored
         self.tier = 1                           # 1..len(config.BALL_TIER_SPEEDS): speed and damage step (every ball has its own)
+        self.tier_up = 0                        # new tier if the last update() raised it (0 = no change); the scene plays its sound
         self.bonus = False                      # True for the multi-ball skill's balls: outside BOSS_MAX_BALLS, a loss costs nothing
 
     @classmethod
@@ -427,6 +428,7 @@ class HelperBall(_Faller):
         if not self.alive or dt <= 0:
             return ()
         events = []
+        self.tier_up = 0
         n, h = _split(dt, time_scale)
         for _ in range(n):
             if self.state == "falling":
@@ -482,6 +484,9 @@ class HelperBall(_Faller):
         # Paddle: only a falling ball whose centre is above the paddle's middle line bounces
         self.pos.update(x, y)
         if paddle is not None and vy > 0 and y <= paddle.centery and paddle.colliderect(self.rect):
+            if self.tier < len(config.BALL_TIER_SPEEDS):
+                self.tier += 1                  # every paddle bounce speeds the ball up one step, before it leaves
+                self.tier_up = self.tier
             vx, vy = launch_velocity(x, paddle, self.speed)
             y = paddle.top - r
             events.append("paddle")

@@ -470,13 +470,13 @@ def walk_boss(d: Driver) -> None:
     play.energy = config.BOSS_ENERGY_NEED
     play.player.pos.x = ctrl.boss.pos.x
     d.key(pg.K_SPACE)
-    check(play.beams[-1].hit and abs((hp - ctrl.boss.hp) - config.BOSS_BEAM_DAMAGE) < 1e-6,
+    check(play.beams[-1].hit and abs((hp - ctrl.boss.hp) - config.beam_damage(1)) < 1e-6,
           f"beam took {hp - ctrl.boss.hp:.2f} hp")
     check(play.score > score, "damage scores points")
     d.steps(4)
     d.shot("boss_beam")
 
-    # Ball: caught -> flies -> hits the boss for BOSS_BALL_DAMAGE
+    # Ball: caught -> flies -> hits the boss for ball_base_damage(1)
     play.helpers.clear()
     x = play.player.pos.x
     ball = HelperBall(x, catch_y(config.BOSS_BALL_RADIUS) - 30)
@@ -489,7 +489,7 @@ def walk_boss(d: Driver) -> None:
     ball.pos.update(b.pos.x, b.pos.y + b.half_h + 60)
     ball.vel.update(0, -config.BOSS_BALL_SPEED)
     wait_for(d, lambda: ctrl.boss.hp < hp, 60, "the ball hits the boss")
-    check(abs((hp - ctrl.boss.hp) - config.BOSS_BALL_DAMAGE) < 1e-6, f"ball took {hp - ctrl.boss.hp:.2f} hp")
+    check(abs((hp - ctrl.boss.hp) - config.ball_base_damage(1)) < 1e-6, f"ball took {hp - ctrl.boss.hp:.2f} hp")
     check(play.ball_hits == 1 and not any(isinstance(h, EnergyItem) for h in play.helpers), "one ball hit: no energy yet")
     ball.pos.update(b.pos.x, b.pos.y + b.half_h + 60)           # second hit: an energy item falls from the boss
     ball.vel.update(0, -config.BOSS_BALL_SPEED)

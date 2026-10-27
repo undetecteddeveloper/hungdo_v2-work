@@ -6,7 +6,7 @@ import random
 import pygame as pg
 
 from .. import config
-from ..entities.boss_items import Beam, EnergyItem, HelperBall, Projectile
+from ..entities.boss_items import Beam, EnergyItem, HelperBall, Projectile, tier_speed
 from ..entities.items import Item, catch_y
 from ..entities.player import Player
 from ..i18n import t
@@ -587,6 +587,8 @@ class PlayScene(Scene):
         elif ev == "paddle":
             self.app.audio.play("catch", 0.55)
             self.player.bump(0.3)
+            if ball.tier_up > 1:
+                self.app.audio.play(f"ball_tier{ball.tier_up}", 0.7)      # the ball just got faster (and harder-hitting)
         elif ev == "boss":
             self._ball_hit_boss(ball)
         elif ev == "lost":
@@ -867,10 +869,10 @@ class PlayScene(Scene):
         if flying:
             # A ball coming down is the only source of energy (losing it costs no life): be under it. Hit it so that it comes back near the boss
             # to where it was caught (a ball sent across the field is lost), preferring returns that touch the boss.
-            tm, lx, _ = min((self._ball_flight(h.pos.x, h.pos.y, h.vel.x, h.vel.y, h.radius, ctrl.hit_rect)
-                             for h in flying), key=lambda f: f[0])
+            (tm, lx, _), nxt = min(((self._ball_flight(h.pos.x, h.pos.y, h.vel.x, h.vel.y, h.radius, ctrl.hit_rect), h)
+                                    for h in flying), key=lambda f: f[0][0])
             y_line = config.PLAYER_Y - config.PLAYER_H / 2 - config.BOSS_BALL_RADIUS
-            sp, best = config.BOSS_BALL_SPEED, None
+            sp, best = tier_speed(nxt.tier + 1), None                # the next bounce lifts that ball one tier
             for o in (-0.5, -0.25, 0.0, 0.25, 0.5):
                 ang = o * math.radians(config.BOSS_BALL_MAX_ANGLE)
                 _, rx, hit = self._ball_flight(lx, y_line, sp * math.sin(ang), -sp * math.cos(ang),

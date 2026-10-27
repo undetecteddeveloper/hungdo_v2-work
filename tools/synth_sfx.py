@@ -27,7 +27,8 @@ SFX_NAMES = ["catch", "catch_rare", "catch_epic", "miss", "bomb", "powerup", "sh
              "heart", "combo_up", "level_up", "countdown", "go", "ui_move", "ui_select",
              "ui_back", "game_over", "new_record",
              "boss_intro", "boss_hit", "beam_charge", "beam_fire", "boss_defeat", "warning",
-             "boss_shot", "boss_sweep"]
+             "boss_shot", "boss_sweep",
+             "ball_tier2", "ball_tier3"]
 
 rng = np.random.default_rng(1234)   # fixed seed -> reproducible noise
 
@@ -365,6 +366,23 @@ def sfx_boss_sweep():
     wash = lowpass(noise(dur), sweep(6000, 500, dur)) * env(dur, attack=0.01, decay=0.3) * 0.4
     thump = osc(sweep(150, 45, 0.22), 0.22) * env(0.22, attack=0.001, decay=0.07)
     return mix((body, 0), (wash, 0), (thump * 0.9, 0))
+
+
+def _tier_up(notes, dur: float) -> np.ndarray:
+    """A ball speeds up one step: soft rising blip of sine/triangle notes (no noise, no hard edges), short and clean."""
+    sig = arpeggio(notes, 0.055, dur, wave_="tri", decay=dur * 0.45) * 0.7
+    shine = arpeggio([n + 12 for n in notes], 0.055, dur, wave_="sine", decay=dur * 0.35) * 0.3
+    return mix((sig, 0), (shine, 0))
+
+
+def sfx_ball_tier2():
+    """Ball reaches speed step 2: one rising pair (~0.17 s)."""
+    return _tier_up([79, 84], 0.12)
+
+
+def sfx_ball_tier3():
+    """Ball reaches the top speed step: a higher, quicker three-note rise (~0.22 s)."""
+    return _tier_up([84, 88, 93], 0.12)
 
 
 RECIPES = {name: globals()[f"sfx_{name}"] for name in SFX_NAMES}

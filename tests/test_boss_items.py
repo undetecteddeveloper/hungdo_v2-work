@@ -58,6 +58,20 @@ def at_widths(test):
     return wrapper
 
 
+def flat_tiers(test):
+    """Run a test with every ball tier at the tier-1 speed / damage (tests that check one constant speed through paddle bounces)."""
+    @functools.wraps(test)
+    def wrapper():
+        saved = config.BALL_TIER_SPEEDS, config.BALL_TIER_DAMAGE
+        config.BALL_TIER_SPEEDS = (saved[0][0],) * len(saved[0])
+        config.BALL_TIER_DAMAGE = (saved[1][0],) * len(saved[1])
+        try:
+            test()
+        finally:
+            config.BALL_TIER_SPEEDS, config.BALL_TIER_DAMAGE = saved
+    return wrapper
+
+
 def make_paddle(cx: float = None, full: bool = False) -> pg.Rect:
     """Paddle rect like Player.rect (a full-width 'floor' when full=True)."""
     h = config.PLAYER_H
@@ -346,6 +360,7 @@ def test_ball_catch_angles():
 
 
 @at_widths
+@flat_tiers
 def test_ball_flight_1000():
     W, H = config.LOGICAL_W, config.LOGICAL_H
     floor = make_paddle(full=True)
@@ -445,6 +460,7 @@ def test_ball_not_trapped():
 
 
 @at_widths
+@flat_tiers
 def test_ball_paddle_bounce():
     W = config.LOGICAL_W
     paddle = make_paddle(W / 2)
@@ -477,6 +493,7 @@ def test_ball_paddle_bounce():
 
 
 @at_widths
+@flat_tiers
 def test_ball_boss():
     W = config.LOGICAL_W
     boss = make_boss()
