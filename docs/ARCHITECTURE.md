@@ -307,13 +307,13 @@ Speed tiers: a caught ball starts at tier 1; every paddle bounce while flying ra
   (`systems/shot_sfx.py`: `ShotSfx` spaces the blips 24-40 ms apart, lowers each blip's volume with the crowd size and keeps at most 5
   sounding at once; the scene plays them with `AudioManager.play(..., min_interval=0.0)`), and `boss_sweep` on `sweep_fire`; `ball_tier2` / `ball_tier3` (a ball goes up a speed tier), `skill_pick` (skill item caught) and `skill_reflect` (a shot bounced back).
 
-### Laser animation (PROTOTYPE, not decided yet) and the F9 boss picker
+### Laser animation and the F9 boss picker
 - `render/boss_laser.py` paints the boss's firing pose from `boss.laser / laser_k / laser_open` (copied into the draw context by `boss_draw.draw_boss`).
-  Three variants for the Hex Core, chosen by `boss_draw.LASER_VARIANT` (`"A"` default): **A** a hatch in the bottom edge opens and a plasma ball sinks to it;
-  **B** the hexagon layers align and a ringed barrel extends below, a light pulse runs down it; **C** two wing cannons swing down and converge on one point.
-  Prism and Void Eye share one generic pose (glow + collapsing rings at the bottom edge). Once a variant is picked, delete the other two and `LASER_VARIANT`.
-- `python tools/preview_laser.py` opens a window with the real controller and drawing (keys 1 2 3 = variant, Tab = phase, A/D = paddle, Space = fire, S = slow motion);
-  `--sheet` writes `tools/_out/laser_sheet.png` (frames of all variants, no window). No sound is attached to the aim / lock stages yet.
+  Same idea for every design: two cannons aim at one focus point just under the boss, thin charge beams run to it, an orb grows there and the column fires from it.
+  Hex Core: two wing cannons swing down; Prism: the two lower shards stretch into spikes; Void Eye: the iris sinks to the lower lid and the eye's two corners cast the beams.
+  The body trembles while charging and is kicked up by `recoil` when it fires.
+- `python tools/preview_laser.py` opens a window with the real controller and drawing (keys 1 2 3 = boss, Tab = phase, A/D = paddle, Space = fire, S = slow motion);
+  `--sheet` writes `tools/_out/laser_sheet.png` (frames of the three bosses, no window). No sound is attached to the aim / lock stages yet.
 - F9 in a normal round (CHEAT, temporary) opens `scenes/cheat_boss.py`: a list "Boss 1 - lv 10 ... Boss 9 - lv 90" over the paused round; the pick sets
   `next_boss_level` / `bosses_defeated` and starts that boss (practice round: the high score is not saved). Not available during a boss fight.
 

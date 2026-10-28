@@ -1,10 +1,10 @@
-"""Prototype viewer for the boss laser firing animation (Hex Core, boss of level 10). Nothing here is part of the game.
+"""Viewer for the boss laser firing animation (all three bosses). Nothing here is part of the game.
 
     python tools/preview_laser.py                 # window: the real BossController + the real drawing code
-    python tools/preview_laser.py --sheet         # no window: writes tools/_out/laser_sheet.png (frames of A / B / C)
+    python tools/preview_laser.py --sheet         # no window: writes tools/_out/laser_sheet.png (frames of the three bosses)
 
 Keys in the window:
-    1 2 3      animation variant A / B / C        Tab   boss phase 2 <-> 3
+    1 2 3      boss: Hex Core / Prism / Void Eye   Tab   boss phase 2 <-> 3
     A D / < >  move the paddle (the boss slides to it)   Space  fire the laser now
     S          slow motion on / off                Esc   quit
 The laser repeats on its own. The red strip under the boss is the real warning column; the paddle flashes red when it is hit.
@@ -20,21 +20,21 @@ sys.path.insert(0, ROOT)
 import pygame as pg  # noqa: E402
 
 from game import config  # noqa: E402
-from game.render import boss_draw, boss_laser  # noqa: E402
+from game.render import boss_draw  # noqa: E402
 from game.systems.boss import BossController  # noqa: E402
 
 W, H = config.LOGICAL_W, config.LOGICAL_H
 DT = 1 / 120
-NAMES = {"A": "A  Nòng lõi", "B": "B  Lăng kính hội tụ", "C": "C  Pháo cánh kép"}
+NAMES = ("1  Hex Core (lv10)", "2  Prism (lv20)", "3  Void Eye (lv30)")
 OUT = os.path.join(ROOT, "tools", "_out")
 
 
 class Rig:
     """One boss + one paddle position, stepped like the game does (volleys switched off, laser repeating)."""
 
-    def __init__(self, phase: int = 2, seed: int = 5):
+    def __init__(self, phase: int = 2, seed: int = 5, kind: int = 0):
         self.ctrl = BossController(random.Random(seed))
-        self.boss = self.ctrl.start(1)
+        self.boss = self.ctrl.start(kind + 1)
         self.px = W / 2
         self.t = 0.0
         self.hit_flash = 0.0
@@ -98,9 +98,8 @@ def run_window(args) -> None:
     canvas = pg.Surface((W, H))
     font = pg.font.SysFont("segoeui,arial,tahoma", 20)
     small = pg.font.SysFont("segoeui,arial,tahoma", 16)
-    rig = Rig(phase=2)
-    boss_draw.LASER_VARIANT = "A"
-    phase, slow = 2, False
+    kind, phase, slow = 0, 2, False
+    rig = Rig(phase=phase, kind=kind)
     clock = pg.time.Clock()
     acc = 0.0
     running = True
@@ -111,7 +110,8 @@ def run_window(args) -> None:
                 running = False
             elif ev.type == pg.KEYDOWN:
                 if ev.key in (pg.K_1, pg.K_2, pg.K_3):
-                    boss_draw.LASER_VARIANT = "ABC"[ev.key - pg.K_1]
+                    kind = ev.key - pg.K_1
+                    rig = Rig(phase=phase, kind=kind)
                 elif ev.key == pg.K_TAB:
                     phase = 5 - phase
                     rig.set_phase(phase)
@@ -128,7 +128,7 @@ def run_window(args) -> None:
             acc -= DT
         draw_world(canvas, rig, rig.t)
         b = rig.ctrl.boss
-        info = [f"Kiểu: {NAMES[boss_draw.LASER_VARIANT]}   (phím 1 / 2 / 3)", f"Giai đoạn boss: {phase}   (Tab)",
+        info = [f"Boss: {NAMES[kind]}   (phím 1 / 2 / 3)", f"Giai đoạn boss: {phase}   (Tab)",
                 f"Tia: {b.laser or '-'}   {'chậm 0.3x' if slow else 'tốc độ thường'}   (S)"]
         for i, line in enumerate(info):
             canvas.blit(font.render(line, True, (200, 220, 255)), (12, 10 + i * 24))
@@ -140,7 +140,7 @@ def run_window(args) -> None:
 
 
 def make_sheet(args) -> None:
-    """Frames of one laser shot per variant: columns are moments of the shot, rows are the variants."""
+    """Frames of one laser shot per boss: columns are moments of the shot, rows are the three bosses."""
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     pg.init()
     pg.display.set_mode((16, 16))
@@ -151,9 +151,8 @@ def make_sheet(args) -> None:
     font = pg.font.SysFont("segoeui,arial,tahoma", 18)
     sheet = pg.Surface((crop.w * len(moments), (crop.h + 28) * 3))
     sheet.fill((0, 0, 0))
-    for row, variant in enumerate("ABC"):
-        boss_draw.LASER_VARIANT = variant
-        rig = Rig(phase=args.phase)
+    for row, variant in enumerate("123"):
+        rig = Rig(phase=args.phase, kind=row)
         rig.px = W / 2 + 130
         rig.fire_now()
         got = {}

@@ -359,47 +359,33 @@ def mk_beam(**kw) -> NS:
 
 
 def test_laser_poses():
-    """Every boss, every laser stage and animation variant draws without error, stays near the body, the variants differ for
-    the Hex Core only, the closed cannon looks like the plain body, and the glow cache stays small."""
-    from game.render import boss_laser
+    """Every boss and laser stage draws without error and stays near the body; the open cannons change the picture,
+    the closed ones do not; the three bosses pose differently; a long shot sequence keeps the glow cache small."""
     stages = [("aim", 0.5, 0.4), ("lock", 0.1, 1.0), ("lock", 0.9, 1.0), ("fire", 0.05, 1.0), ("fire", 0.8, 1.0), ("", 0.0, 0.5)]
-    try:
-        for w in WIDTHS:
-            for kind in range(3):
-                pics = {}
-                for variant in boss_laser.VARIANTS:
-                    boss_draw.LASER_VARIANT = variant
-                    for stage, k, op in stages:
-                        s, b = render(kind, w, laser=stage, laser_k=k, laser_open=op, phase=2)
-                        rect = boss_rect(b)
-                        assert lit(s, rect) > rect.w * rect.h * 0.08, (w, kind, variant, stage)
-                        bb = bbox_lit(s, 60)
-                        assert bb is not None and rect.inflate(300, 360).contains(bb), (w, kind, variant, stage, bb, rect)
-                        pics[(variant, stage, k)] = crop_bytes(s, view_rect(b).inflate(0, 120))
-                key = ("lock", 0.9)
-                d_ab = diff_frac(pics[("A",) + key], pics[("B",) + key])
-                d_ac = diff_frac(pics[("A",) + key], pics[("C",) + key])
-                if kind == 0:
-                    assert d_ab > 0.01 and d_ac > 0.01, (w, d_ab, d_ac)
-                else:
-                    assert d_ab == 0.0 and d_ac == 0.0, (w, kind, "only the Hex Core has variants")
-        # closed and idle: same picture as a boss that was never told about lasers
-        boss_draw.LASER_VARIANT = "B"
-        s1, b1 = render(0, 540, phase=2)
-        s2, b2 = render(0, 540, phase=2, laser="", laser_k=0.0, laser_open=0.0)
-        assert crop_bytes(s1, view_rect(b1)) == crop_bytes(s2, view_rect(b2))
-        # a long shot sequence does not flood the shared neon cache
-        for variant in boss_laser.VARIANTS:
-            boss_draw.LASER_VARIANT = variant
-            neon.clear_cache()
-            s = surface(540)
-            for i in range(600):
-                st = ("aim", "lock", "fire")[min(2, i // 200)]
-                boss = mk_boss(0, anim_t=i * 0.0167, phase=2, laser=st, laser_k=(i % 200) / 200, laser_open=min(1.0, i / 30))
-                boss_draw.draw_boss(s, boss, i * 0.0167)
-            assert len(neon._glows.data) <= 140, (variant, len(neon._glows.data))
-    finally:
-        boss_draw.LASER_VARIANT = "A"
+    for w in WIDTHS:
+        for kind in range(3):
+            s0, b0 = render(kind, w, phase=2)
+            plain = crop_bytes(s0, view_rect(b0).inflate(0, 120))
+            for stage, k, op in stages:
+                s, b = render(kind, w, laser=stage, laser_k=k, laser_open=op, phase=2)
+                rect = boss_rect(b)
+                assert lit(s, rect) > rect.w * rect.h * 0.08, (w, kind, stage)
+                bb = bbox_lit(s, 60)
+                assert bb is not None and rect.inflate(300, 360).contains(bb), (w, kind, stage, bb, rect)
+                assert diff_frac(plain, crop_bytes(s, view_rect(b).inflate(0, 120))) > 0.003, (w, kind, stage, "pose is invisible")
+    # closed and idle: exactly the plain body
+    for kind in range(3):
+        s1, b1 = render(kind, 540, phase=2)
+        s2, b2 = render(kind, 540, phase=2, laser="", laser_k=0.0, laser_open=0.0)
+        assert crop_bytes(s1, view_rect(b1)) == crop_bytes(s2, view_rect(b2)), kind
+    for kind in range(3):
+        neon.clear_cache()
+        s = surface(540)
+        for i in range(600):
+            st = ("aim", "lock", "fire")[min(2, i // 200)]
+            boss = mk_boss(kind, anim_t=i * 0.0167, phase=2, laser=st, laser_k=(i % 200) / 200, laser_open=min(1.0, i / 30))
+            boss_draw.draw_boss(s, boss, i * 0.0167)
+        assert len(neon._glows.data) <= 140, (kind, len(neon._glows.data))
 
 
 def test_sweep_stages_with_real_sweep():

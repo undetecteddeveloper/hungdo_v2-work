@@ -33,7 +33,6 @@ GLOW_STEP = 8                       # px, glow sizes are quantised so the neon c
 DEATH_LAYER = (480, 420)            # scratch layer for the death fade (covers body + halos)
 DEFAULT_COLORS = (("orange", "yellow"), ("magenta", "cyan"), ("purple", "green"))
 
-LASER_VARIANT = "A"                 # PROTOTYPE: which laser firing animation the Hex Core uses (boss_laser.VARIANTS)
 _layer = None                       # death scratch surface, created on first use
 _stripe_tiles = {}                  # brightness level -> hazard stripe tile
 
@@ -173,7 +172,7 @@ def _draw_hexcore(c: _Ctx) -> None:
     pg.draw.aalines(s, scale_color(acc, 0.7), True, frame(hw - 9, hh - 9))
 
     # Counter-rotating hexagon layers
-    ang1, ang2, ang3 = boss_laser.align_angles(c, (a * 0.45, -a * 0.8, a * 1.25), LASER_VARIANT)
+    ang1, ang2, ang3 = (a * 0.45, -a * 0.8, a * 1.25)
     _poly(c, regular_polygon(cx, cy, hh * 0.82, 6, ang1), acc, 0.10, 2)
     pts2 = regular_polygon(cx, cy, hh * 0.6, 6, ang2)
     pts3 = regular_polygon(cx, cy, hh * 0.38, 6, ang3)
@@ -327,7 +326,7 @@ def _draw_eye(c: _Ctx) -> None:
 
     look = 1.0 - c.ch * 0.9                              # the gaze locks on while charging
     gx = hw * 0.30 * look * (math.sin(a * 0.8) * 0.65 + math.sin(a * 1.9 + 1.0) * 0.35)
-    gy = hh * 0.14 * look * math.sin(a * 1.1 + 0.5)
+    gy = hh * 0.14 * look * math.sin(a * 1.1 + 0.5) + boss_laser.eye_drop(c, hh)     # laser open: the gaze sinks to the lower lid
     ix, iy = cx + gx, cy + gy
     ri = min(hh * 0.8, hw * 0.5)
     _halo(c, ix, iy, ri * 0.7, acc, 0.7 * o)
@@ -348,7 +347,7 @@ def _draw_eye(c: _Ctx) -> None:
     pg.draw.aacircle(s, _col(c, acc), _ipt((ix, iy)), int(ri * 0.8), 1)
     pg.draw.aacircle(s, _col(c, main), _ipt((ix, iy)), int(ri * 0.62), 2)
     rp = ri * (0.30 + 0.16 * c.ch)
-    if enr:                                              # angry slit pupil
+    if enr or c.lo > 0.3:                                # angry slit pupil (also while the laser is open)
         pr = pg.Rect(0, 0, int(rp * 0.9), int(rp * 2.6))
         pr.center = _ipt((ix, iy))
         pg.draw.ellipse(s, (6, 0, 10), pr)
@@ -436,7 +435,7 @@ def draw_boss(surf: pg.Surface, boss, t: float, assets=None) -> None:
         c.cx, c.cy = boss.pos.x + jx, boss.pos.y + jy - boss_laser.recoil(c.lz, c.lk)
 
     _PAINTERS[kind](c)
-    boss_laser.fx(c, LASER_VARIANT)
+    boss_laser.fx(c)
     if c.fl > 0.12:                                      # white-out flash on top of the body
         glow_circle_at(c.s, (c.cx, c.cy), _q(max(c.hw, c.hh) * 0.9, 6), WHITE, _qi(c.fl * 0.5))
     if d > 0.0:
