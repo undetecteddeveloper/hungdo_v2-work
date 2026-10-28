@@ -1,6 +1,6 @@
 """Dev tool: render the Hứng Đồ v2 app icon procedurally (no external assets).
 
-A neon basket catching a glowing orb on a dark navy rounded square.
+The game's straight neon paddle catching a golden star (the real "epic" item) on a dark navy rounded square.
 Everything is drawn at 4x and downsampled for clean anti-aliasing.
 
     python tools/make_icon.py            # writes assets/icon.png (256) + assets/icon.ico
@@ -23,7 +23,7 @@ ICO_SIZES = [16, 32, 48, 64, 128, 256]
 BG_TOP = (18, 20, 48)
 BG_BOTTOM = (6, 7, 22)
 CYAN = (0, 240, 255)
-MAGENTA = (255, 46, 196)
+MAGENTA = (255, 46, 196)  # kept for the palette; the icon itself uses cyan + yellow
 YELLOW = (255, 225, 60)
 WHITE = (255, 255, 255)
 
@@ -73,62 +73,51 @@ def render(size: int, detail: bool = True) -> Image.Image:
                                                outline=CYAN + (70,), width=int(3 * u))
         base = _add(base, ring)
 
-    #Orb position: it sits in the mouth of the basket, just caught
-    cx, cy, r = 128 * u, (124 if detail else 116) * u, (32 if detail else 44) * u
+    #Star: the game's "epic" item (5-point star, dark yellow fill, bright yellow outline), tilted a little as if it spins
+    cx, cy = 128 * u, (108 if detail else 104) * u
+    R = (50 if detail else 62) * u
+    star = [(cx + math.cos(-math.pi / 2 + 0.2 + math.pi * k / 5) * R * (1.0 if k % 2 == 0 else 0.45),
+             cy + math.sin(-math.pi / 2 + 0.2 + math.pi * k / 5) * R * (1.0 if k % 2 == 0 else 0.45)) for k in range(10)]
 
-    #Motion trail above the orb (falling streaks)
+    #Motion trail above the star (falling streaks)
     if detail:
         trail = Image.new("RGBA", (S, S), (0, 0, 0, 0))
         td = ImageDraw.Draw(trail)
-        for dx, y0, y1, alpha in ((-16, 34, 80, 90), (0, 20, 84, 150), (16, 34, 80, 90)):
+        for dx, y0, y1, alpha in ((-26, 30, 58, 80), (0, 14, 46, 140), (26, 30, 58, 80)):
             x = 128 + dx
-            td.line((x * u, y0 * u, x * u, y1 * u), fill=MAGENTA + (alpha,), width=int(6 * u))
-            td.ellipse(((x - 3) * u, (y0 - 3) * u, (x + 3) * u, (y0 + 3) * u), fill=MAGENTA + (alpha,))
+            td.line((x * u, y0 * u, x * u, y1 * u), fill=YELLOW + (alpha,), width=int(6 * u))
+            td.ellipse(((x - 3) * u, (y0 - 3) * u, (x + 3) * u, (y0 + 3) * u), fill=YELLOW + (alpha,))
         base = _add(base, _glow(trail, 6 * u))
         base = _add(base, trail)
 
-    #Orb: glowing magenta ball with a hot pink-white core
-    orb = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    ImageDraw.Draw(orb).ellipse((cx - r, cy - r, cx + r, cy + r), fill=MAGENTA + (255,))
-    base = _add(base, _glow(orb, 22 * u, 1.6))
-    base = _add(base, orb)
-    core = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    cr, off = r * 0.5, r * 0.2
-    ImageDraw.Draw(core).ellipse((cx - cr - off, cy - cr - off, cx + cr - off, cy + cr - off),
-                                 fill=(255, 200, 245, 210))
-    base = _add(base, _glow(core, 5 * u))
+    body = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(body).polygon(star, fill=YELLOW + (255,))
+    base = _add(base, _glow(body, 20 * u, 1.4))
+    fill = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(fill).polygon(star, fill=(70, 60, 12, 255))
+    base = _add(base, fill)
+    edge = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(edge).line(star + [star[0], star[1]], fill=YELLOW + (255,), width=int((7 if detail else 10) * u), joint="curve")
+    base = _add(base, edge)
 
-    #Basket: cyan U-shaped cup (straight walls, round bottom) drawn as outer minus inner shape
-    bw = (16 if detail else 26) * u
-    x0, x1 = (64 if detail else 52) * u, (192 if detail else 204) * u
-    y0, y1 = (112 if detail else 104) * u, (212 if detail else 222) * u
-    rad = (x1 - x0) / 2
-    cup = Image.new("L", (S, S), 0)
-    cd = ImageDraw.Draw(cup)
-    cd.rounded_rectangle((x0, y0, x1, y1), rad, fill=255, corners=(False, False, True, True))
-    cd.rounded_rectangle((x0 + bw, y0 - bw, x1 - bw, y1 - bw), rad - bw, fill=0,
-                         corners=(False, False, True, True))
-    #Round caps on top of the walls keep the stroke flat-vector clean
-    for wx in (x0 + bw / 2, x1 - bw / 2):
-        cd.ellipse((wx - bw / 2, y0 - bw / 2, wx + bw / 2, y0 + bw / 2), fill=255)
-    basket = Image.new("RGBA", (S, S), CYAN + (0,))
-    basket.putalpha(cup)
-    base = _add(base, _glow(basket, 14 * u, 1.5))
-    base = _add(base, basket)
-
-    #Sparkles where the orb meets the basket
+    #Paddle: the in-game capsule, straight (dark cyan fill, bright cyan outline, light highlight line)
+    px0, px1 = (46 if detail else 36) * u, (210 if detail else 220) * u
+    py0, py1 = (178 if detail else 170) * u, (208 if detail else 214) * u
+    cap = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(cap).rounded_rectangle((px0, py0, px1, py1), (py1 - py0) / 2, fill=CYAN + (255,))
+    base = _add(base, _glow(cap, 14 * u, 1.5))
+    inner = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ow = (6 if detail else 9) * u
+    ImageDraw.Draw(inner).rounded_rectangle((px0 + ow, py0 + ow, px1 - ow, py1 - ow), (py1 - py0) / 2 - ow, fill=(0, 62, 70, 255))
+    rim = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(rim).rounded_rectangle((px0, py0, px1, py1), (py1 - py0) / 2, fill=CYAN + (255,))
+    ImageDraw.Draw(rim).rounded_rectangle((px0 + ow, py0 + ow, px1 - ow, py1 - ow), (py1 - py0) / 2 - ow, fill=(0, 0, 0, 0))
+    base = _add(base, inner)
+    base = _add(base, rim)
     if detail:
-        spark = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-        sd = ImageDraw.Draw(spark)
-        for sx, sy, sr in ((44, 96, 9), (212, 90, 8), (198, 62, 5)):
-            pts = []
-            for k in range(8):
-                a = math.pi * k / 4 - math.pi / 2
-                rr = sr if k % 2 == 0 else sr * 0.3
-                pts.append(((sx + math.cos(a) * rr) * u, (sy + math.sin(a) * rr) * u))
-            sd.polygon(pts, fill=YELLOW + (255,))
-        base = _add(base, _glow(spark, 4 * u))
-        base = _add(base, spark)
+        hl = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        ImageDraw.Draw(hl).line((px0 + 26 * u, (py0 + 12 * u), px1 - 26 * u, (py0 + 12 * u)), fill=(200, 255, 255, 230), width=int(3 * u))
+        base = _add(base, hl)
 
     #Clip to the rounded square and downsample
     out = base.convert("RGBA")

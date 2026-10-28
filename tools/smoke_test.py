@@ -135,8 +135,17 @@ def walk_menus(d: Driver) -> None:
     d.key(pg.K_ESCAPE)
     check(d.stack == ["menu"], f"Esc returns from howto ({d.stack})")
 
-    # Settings: change every row
+    # Credits: scroll a little, fast-forward, Esc back
     d.focus_to(menu, 2)
+    d.key(pg.K_RETURN)
+    d.steps(90)
+    check(d.stack == ["menu", "credits"], f"credits pushed ({d.stack})")
+    d.shot("credits")
+    d.key(pg.K_ESCAPE)
+    check(d.stack == ["menu"], f"Esc returns from credits ({d.stack})")
+
+    # Settings: change every row
+    d.focus_to(menu, 3)
     d.key(pg.K_RETURN)
     d.steps(10)
     check(d.stack == ["menu", "settings"], f"settings pushed ({d.stack})")
@@ -207,7 +216,7 @@ def walk_menus(d: Driver) -> None:
           "settings.json reflects the changes")
 
     # Quit asks for confirmation; Esc / Stay keeps the game running
-    d.focus_to(menu, 3)
+    d.focus_to(menu, 4)
     d.key(pg.K_RETURN)
     check(d.stack == ["menu", "confirm_quit"], f"Quit opens confirmation ({d.stack})")
     check(app.running, "game still running while asked")

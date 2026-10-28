@@ -4,7 +4,7 @@ import math
 import pygame as pg
 
 from .. import config
-from .items import glow_rect_at, mix_color, outline, scale_color
+from .items import glow_rect_at, glow_rect_tilted_at, mix_color, outline, scale_color
 
 STOP_SPEED = 40.0                   # px/s, wall bounces slower than this just stop (no jitter)
 TILT_MAX = 7.0                      # degrees at full speed
@@ -140,7 +140,7 @@ class Player:
 
         # Glow (quantised size so the neon cache does not grow per pixel)
         gw = int(w + GLOW_STEP - 1) // GLOW_STEP * GLOW_STEP
-        glow_rect_at(surf, (cx, cy), gw, int(h) // 2 * 2, color, radius=int(h / 2))
+        glow_rect_tilted_at(surf, (cx, cy), gw, int(h) // 2 * 2, color, int(h / 2), self.tilt)
 
         # Speed after-images
         speed = self.vel.x / config.player_max_speed()

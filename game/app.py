@@ -26,6 +26,7 @@ SCENE_MODULES = {
     "howto": (".scenes.howto", ("HowToScene", "HowtoScene")),
     "confirm_quit": (".scenes.confirm_quit", ("ConfirmQuitScene",)),
     "boss_reward": (".scenes.boss_reward", ("BossRewardScene",)),
+    "credits": (".scenes.credits", ("CreditsScene",)),
     "cheat_boss": (".scenes.cheat_boss", ("CheatBossScene",)),       # CHEAT (temporary): F9 boss picker
 }
 OVERLAY_PLACEHOLDERS = {"pause", "settings", "confirm_quit", "boss_reward", "cheat_boss"}

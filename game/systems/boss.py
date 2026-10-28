@@ -28,7 +28,7 @@ KIND_DEFS = (
     # colours (boss, accent), hitbox half size, patrol speed px/s (x field_scale ** 0.5), shot colour
     {"colors": ("orange", "yellow"), "half": (84.0, 64.0), "patrol": 82.0, "shot": "orange"},    # Hex Core
     {"colors": ("magenta", "cyan"), "half": (94.0, 56.0), "patrol": 122.0, "shot": "magenta"},   # Prism
-    {"colors": ("purple", "green"), "half": (70.0, 70.0), "patrol": 68.0, "shot": "red"},        # Void Eye
+    {"colors": ("purple", "green"), "half": (70.0, 70.0), "patrol": 68.0, "shot": "purple"},     # Void Eye
 )
 PATROL_PHASE_MULT = (1.0, 1.05, 1.1)    # patrol speed per phase
 PATROL_MAX = 140.0                      # px/s at 540 wide, whatever the multipliers
@@ -130,7 +130,7 @@ class Shot:
     vy: float
     radius: float = 13.0
     shape: str = "orb"          # "orb" | "bolt" | "shard"
-    color: str = "red"          # PALETTE key: only "red" | "orange" | "magenta"
+    color: str = "red"          # PALETTE key: only "red" | "orange" | "magenta" | "purple"
 
 
 @dataclass

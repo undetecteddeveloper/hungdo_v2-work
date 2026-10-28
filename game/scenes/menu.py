@@ -72,9 +72,10 @@ class MenuScene(Scene):
         self.menu = Menu([
             Button("menu.play", self._play),
             Button("menu.howto", lambda: self.app.scenes.push("howto")),
+            Button("menu.credits", lambda: self.app.scenes.push("credits")),
             Button("menu.settings", lambda: self.app.scenes.push("settings")),
             Button("menu.quit", self._ask_quit, sound="ui_back", color=PAL["magenta"]),
-        ], cx, 430, 74, app=app, width=300, row_height=58, font_size=32, on_back=self._on_escape)
+        ], cx, 420, 66, app=app, width=300, row_height=56, font_size=32, on_back=self._on_escape)
 
     #Scene hooks
     def on_enter(self, **kwargs):

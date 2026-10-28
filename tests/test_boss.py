@@ -29,7 +29,7 @@ PAIRS = 40                  # random (boss x, player x) pairs per pattern / widt
 REACT_PATTERN = 0.3         # s a human keeps standing still before reacting to a volley
 REACT_SWEEP = 0.25
 COMFORT_TEST = 0.4          # smallest free corridor of paddle centres (x paddle width) the test accepts
-SHOT_COLORS = {"red", "orange", "magenta"}
+SHOT_COLORS = {"red", "orange", "magenta", "purple"}
 SHAPES = {"orb", "bolt", "shard"}
 
 

@@ -146,7 +146,7 @@ class SceneManager:
     def push(self, name, **kw); def pop(self)
     @property top
 ```
-Scene names: `"splash"`, `"menu"`, `"play"`, `"pause"`, `"settings"`, `"gameover"`, `"howto"`, `"confirm_quit"`, `"boss_reward"`, `"cheat_boss"` (temporary F9 picker, overlay).
+Scene names: `"splash"`, `"menu"`, `"play"`, `"pause"`, `"settings"`, `"gameover"`, `"howto"`, `"confirm_quit"`, `"boss_reward"`, `"credits"`, `"cheat_boss"` (temporary F9 picker, overlay).
 Switch/push/pop requested during update/handle_event are applied at end of frame (deferred) to avoid mutation mid-iteration.
 
 ### app.py — `App`
@@ -233,7 +233,7 @@ COUNTDOWN_SECONDS = 3
   `{"score", "best", "lives", "max_lives", "level", "level_progress" (0..1), "combo", "multiplier", "powerups": [(name, remaining, duration)], "shield": int}`.
   Re-renders text only when values change. Score top-left, hearts top-right (below FPS area, FPS uses top-right 20px), level bar under score,
   combo multiplier badge, power-up timers as small radial/linear bars with icons.
-- Scenes: `menu` (animated neon title "HỨNG ĐỒ", buttons Play / How to play / Settings / Quit, best score line, background), `settings`
+- Scenes: `menu` (animated neon title "HỨNG ĐỒ", buttons Play / How to play / Credit / Settings / Quit, best score line, background), `credits` (neon text scrolling up over the background, Esc / Enter / click = back, hold Space = faster, returns to the menu by itself at the end; author, tools, thanks in `scenes/credits.py`), `settings`
   (overlay-capable; rows: Language, Resolution, Fullscreen, FPS cap, Show FPS, Music volume, SFX volume, Screen shake, Back — changes
   apply live via `app.apply_settings()`; resolution change applies immediately), `pause` (overlay: Resume / Settings / Main menu),
   `gameover` (score, level, best combo, NEW RECORD animation, Retry (Enter) / Menu (Esc)), `howto` (shows each item shape + effect, controls).
@@ -247,7 +247,7 @@ boss-reward upgrades into `player_w()`, `player_*speed*()` and `magnet_radius()`
 Boss number `n` (n=1 at level 10) uses design `kind = (n-1) % 3` and repeats with `cycle = (n-1)//3`: hp x(1 + 0.35 cycle), attacks
 x(1 + 0.20 cycle). Hp and damage live in `config.py` (`boss_max_hp(n)`, `ball_base_damage(n)`, `beam_damage(n)`, `reflect_damage(n, shape)`,
 `boss_points(dealt, n)`): boss n has `2000 * n * (1 + 0.35 cycle)` hp, a tier-1 ball hit deals `50 * n` (so ~40 hits for bosses 1-3, more on later cycles),
-a beam shot 17% of that boss's max hp, score `dealt / n` per hp. Three designs: 0 Hex Core (orange), 1 Prism (magenta), 2 Void Eye (purple); each has its own attack pool per phase.
+a beam shot 17% of that boss's max hp, score `dealt / n` per hp. Three designs: 0 Hex Core (orange shots), 1 Prism (magenta shots), 2 Void Eye (purple shots; every enraged boss shoots red); each has its own attack pool per phase.
 
 ### State machine (`systems/boss.py`, `BossController.state`)
 `idle -> intro (BOSS_INTRO_TIME, no shots, not damageable) -> fight -> enrage (after BOSS_TIME_LIMIT, one way) -> victory
@@ -316,6 +316,10 @@ Speed tiers: a caught ball starts at tier 1; every paddle bounce while flying ra
   `--sheet` writes `tools/_out/laser_sheet.png` (frames of the three bosses, no window). No sound is attached to the aim / lock stages yet.
 - F9 in a normal round (CHEAT, temporary) opens `scenes/cheat_boss.py`: a list "Boss 1 - lv 10 ... Boss 9 - lv 90" over the paused round; the pick sets
   `next_boss_level` / `bosses_defeated` and starts that boss (practice round: the high score is not saved). Not available during a boss fight.
+
+## Looks of the paddle and the icon
+The paddle's halo is rotated with its tilt (`items.glow_rect_tilted_at`, whole degrees, cached). The app icon (`assets/icon.png/.ico`, `tools/make_icon.py`, needs Pillow)
+shows the straight paddle catching the golden "epic" star, i.e. things that really exist in the game.
 
 ## Performance rules
 - All loaded/created surfaces `convert()`/`convert_alpha()`; caches for glow, text, icons; no `pg.font.Font(...)` outside Assets.

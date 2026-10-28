@@ -163,6 +163,33 @@ def glow_rect_at(surf, center, w: int, h: int, color, radius: int = 8, thickness
     _additive_blit(surf, _fallback_rect(w, h, color, int(radius), int(thickness)), center)
 
 
+_tilted_glows = {}
+
+
+def glow_rect_tilted_at(surf, center, w: int, h: int, color, radius: int, angle_deg: float) -> None:
+    """Like glow_rect_at, but the halo is rotated by `angle_deg` (clockwise on screen, whole degrees): it follows a tilted shape.
+    The rotated halos are cached per (size, colour, angle)."""
+    angle = int(round(angle_deg))
+    mod = neon()
+    if angle == 0 or mod is None:
+        glow_rect_at(surf, center, w, h, color, radius)
+        return
+    w, h = max(2, int(w)), max(2, int(h))
+    key = (w, h, tuple(color[:3]), int(radius), angle)
+    glow = _tilted_glows.get(key)
+    if glow is None:
+        try:
+            glow = pg.transform.rotate(mod.glow_rect(w, h, tuple(color[:3]), radius=int(radius)), -angle)
+        except (TypeError, ValueError, AttributeError, pg.error) as e:
+            _neon_failed(e)
+            glow_rect_at(surf, center, w, h, color, radius)
+            return
+        if len(_tilted_glows) > 400:
+            _tilted_glows.clear()
+        _tilted_glows[key] = glow
+    mod.draw_glow(surf, glow, (int(center[0]), int(center[1])))
+
+
 def add_dot(surf, center, radius: int, color) -> None:
     """Small additive dot (trails, sparks); cached per size/colour."""
     radius = max(1, int(radius))
